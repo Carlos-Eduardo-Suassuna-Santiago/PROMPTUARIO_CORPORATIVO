@@ -93,4 +93,4 @@ DEPLOY_DUAS_VMS.md
 GUIA_MUDANCA_IP_AWS.md
 IDEIAS_DE_EVOLUCAO.md
 
-.diagrams/*
+*.diagramas/*
