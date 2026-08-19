@@ -93,7 +93,7 @@ ai_request_duration_seconds = Histogram(
 ai_cache_hits_total = Counter(
     "ai_cache_hits_total",
     "Cache hits de respostas da IA",
-    ["service"],
+    ["service", "analysis_type"],
 )
 ai_errors_total = Counter(
     "ai_errors_total",
