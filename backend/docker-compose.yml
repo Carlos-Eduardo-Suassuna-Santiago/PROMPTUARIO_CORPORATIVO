@@ -2,6 +2,7 @@ services:
   # ─── DATABASES ────────────────────────────────────────────────
   db-iam:
     image: postgres:15-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: iam
       POSTGRES_PASSWORD: ${DB_IAM_PASSWORD:-iam_pass}
@@ -17,6 +18,7 @@ services:
 
   db-patient:
     image: postgres:15-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: patient
       POSTGRES_PASSWORD: ${DB_PATIENT_PASSWORD:-patient_pass}
@@ -32,6 +34,7 @@ services:
 
   db-clinical:
     image: postgres:15-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: clinical
       POSTGRES_PASSWORD: ${DB_CLINICAL_PASSWORD:-clinical_pass}
@@ -47,6 +50,7 @@ services:
 
   db-reporting:
     image: postgres:15-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: reporting
       POSTGRES_PASSWORD: ${DB_REPORTING_PASSWORD:-reporting_pass}
@@ -62,6 +66,7 @@ services:
 
   db-ai:
     image: mongo:7
+    restart: unless-stopped
     environment:
       MONGO_INITDB_ROOT_USERNAME: ai
       MONGO_INITDB_ROOT_PASSWORD: ${DB_AI_PASSWORD:-ai_pass}
@@ -78,6 +83,7 @@ services:
   # ─── INFRASTRUCTURE ───────────────────────────────────────────
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
@@ -92,6 +98,7 @@ services:
 
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
+    restart: unless-stopped
     environment:
       RABBITMQ_DEFAULT_USER: promptuario
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-promptuario_pass}
@@ -109,6 +116,7 @@ services:
 
   minio:
     image: minio/minio:latest
+    restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: promptuario
@@ -130,6 +138,7 @@ services:
     build:
       context: .
       dockerfile: iam-service/Dockerfile
+    restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+asyncpg://iam:${DB_IAM_PASSWORD:-iam_pass}@db-iam:5432/iam_db
       REDIS_URL: redis://redis:6379/0
@@ -158,6 +167,7 @@ services:
     build:
       context: .
       dockerfile: patient-service/Dockerfile
+    restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+asyncpg://patient:${DB_PATIENT_PASSWORD:-patient_pass}@db-patient:5432/patient_db
       RABBITMQ_URL: amqp://promptuario:${RABBITMQ_PASSWORD:-promptuario_pass}@rabbitmq:5672/
@@ -177,6 +187,7 @@ services:
     build:
       context: .
       dockerfile: clinical-service/Dockerfile
+    restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+asyncpg://clinical:${DB_CLINICAL_PASSWORD:-clinical_pass}@db-clinical:5432/clinical_db
       RABBITMQ_URL: amqp://promptuario:${RABBITMQ_PASSWORD:-promptuario_pass}@rabbitmq:5672/
@@ -228,6 +239,7 @@ services:
     build:
       context: .
       dockerfile: ai-service/Dockerfile
+    restart: unless-stopped
     environment:
       MONGODB_URL: mongodb://ai:${DB_AI_PASSWORD:-ai_pass}@db-ai:27017/ai_db?authSource=admin
       RABBITMQ_URL: amqp://promptuario:${RABBITMQ_PASSWORD:-promptuario_pass}@rabbitmq:5672/
@@ -260,6 +272,7 @@ services:
     build:
       context: .
       dockerfile: reporting-service/Dockerfile
+    restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+asyncpg://reporting:${DB_REPORTING_PASSWORD:-reporting_pass}@db-reporting:5432/reporting_db
       CELERY_BROKER_URL: redis://redis:6379/1
@@ -291,6 +304,7 @@ services:
     build:
       context: .
       dockerfile: reporting-service/Dockerfile.worker
+    restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+asyncpg://reporting:${DB_REPORTING_PASSWORD:-reporting_pass}@db-reporting:5432/reporting_db
       CELERY_BROKER_URL: redis://redis:6379/1
@@ -312,6 +326,7 @@ services:
     build:
       context: .
       dockerfile: reporting-service/Dockerfile.worker
+    restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+asyncpg://reporting:${DB_REPORTING_PASSWORD:-reporting_pass}@db-reporting:5432/reporting_db
       CELERY_BROKER_URL: redis://redis:6379/1
@@ -329,6 +344,7 @@ services:
     build:
       context: .
       dockerfile: gateway/Dockerfile
+    restart: unless-stopped
     environment:
       IAM_SERVICE_URL: http://iam-service:8000
       PATIENT_SERVICE_URL: http://patient-service:8000
