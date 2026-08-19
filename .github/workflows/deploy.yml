@@ -1,0 +1,25 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy Backend via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_HOST_BACKEND }}
+          username: ${{ secrets.SERVER_USER_BACKEND }}
+          key: ${{ secrets.SERVER_SSH_KEY_BACKEND }}
+          script: |
+            # Entra na pasta do projeto e atualiza o código
+            cd PROMPTUARIO_2026 || cd promptuario
+            git pull origin main
+            
+            # Entra na pasta do backend e reconstrói as imagens
+            cd backend
+            docker compose up --build -d
