@@ -96,6 +96,16 @@ async def list_analyses(record_id: str, request: Request):
     return {"items": jobs, "total": len(jobs)}
 
 
+@router.get("/debug/errors")
+async def list_failed_jobs(request: Request):
+    db = request.app.state.db
+    cursor = db.analysis_jobs.find({"status": "FAILED"}).sort("created_at", -1).limit(5)
+    jobs = await cursor.to_list(length=5)
+    for j in jobs:
+        j["id"] = j.pop("_id")
+    return {"failed_jobs": jobs}
+
+
 # ─── App ─────────────────────────────────────────────────────────────────────
 
 app = FastAPI(
