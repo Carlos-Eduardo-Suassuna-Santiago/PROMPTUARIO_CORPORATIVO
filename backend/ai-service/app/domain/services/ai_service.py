@@ -365,7 +365,8 @@ class AIService:
             "Você é um assistente médico de suporte à decisão clínica. "
             "Responda APENAS em JSON válido conforme o schema solicitado. "
             "Não adicione texto fora do JSON. "
-            "IMPORTANTE: Esta é uma ferramenta de apoio — o médico tem a decisão final."
+            "IMPORTANTE: Esta é uma ferramenta de apoio — o médico tem a decisão final. "
+            "Responda TODOS os valores preenchidos no JSON (diagnósticos, exames, sintomas, explicações, etc.) EXCLUSIVAMENTE em Português do Brasil (pt-BR)."
         )
 
         client = self._get_llm_client()
