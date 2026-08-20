@@ -11,6 +11,7 @@ import {
 import {
   useRequestAnalysis, useAnalysisJob, useRecordAnalyses,
 } from '@/hooks'
+import { recordsApi } from '@/api/services'
 import type { AnalysisType, AnalysisJob } from '@/types'
 import { cn, formatDateTime, formatRelative, getErrorMessage, RISK_COLORS } from '@/utils'
 
@@ -130,12 +131,42 @@ export function AIAnalysisPage() {
       return
     }
 
+    let finalContext = parsedContext.value
+
+    if (Object.keys(finalContext || {}).length === 0 && recordId.trim()) {
+      try {
+        const record = await recordsApi.get(recordId.trim())
+        if (analysisType === 'SYMPTOM_ANALYSIS') {
+          finalContext = {
+            chief_complaint: record.chief_complaint,
+            anamnesis: record.anamnesis,
+            diagnosis_codes: record.diagnosis_codes
+          }
+        } else if (analysisType === 'DRUG_INTERACTION_CHECK') {
+          finalContext = {
+            medications: record.prescriptions?.flatMap((p: any) => p.medications?.map((m: any) => m.name) || []) || []
+          }
+        } else if (analysisType === 'CLINICAL_SUMMARY') {
+          finalContext = {
+             chief_complaint: record.chief_complaint,
+             anamnesis: record.anamnesis,
+             physical_exam: record.physical_exam,
+             diagnosis: record.diagnosis,
+             treatment_plan: record.treatment_plan
+          }
+        }
+      } catch (err) {
+        setFormError('Não foi possível buscar os dados automáticos do prontuário informado.')
+        return
+      }
+    }
+
     try {
       const result = await requestAnalysis.mutateAsync({
         analysis_type: analysisType,
         patient_id: patientId.trim(),
         record_id: recordId.trim() || undefined,
-        context: parsedContext.value,
+        context: finalContext,
       })
       setActiveJobId(result.job_id)
       if (recordId.trim()) {
