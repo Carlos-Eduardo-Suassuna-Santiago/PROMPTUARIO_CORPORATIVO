@@ -89,7 +89,7 @@ def _build_explanation(analysis_type: str, result: dict, model: str, cached: boo
 
 def _compute_cache_key(analysis_type: str, context: dict) -> str:
     """Compute a deterministic cache key from analysis type and context."""
-    raw = json.dumps({"type": analysis_type, "context": context}, sort_keys=True, default=str)
+    raw = json.dumps({"version": "v2_ptbr", "type": analysis_type, "context": context}, sort_keys=True, default=str)
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
