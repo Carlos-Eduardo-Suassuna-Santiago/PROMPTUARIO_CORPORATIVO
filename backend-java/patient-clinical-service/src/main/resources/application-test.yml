@@ -1,0 +1,19 @@
+﻿spring:
+  config:
+    activate:
+      on-profile: test
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/patient_clinical_db_test}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+  flyway:
+    enabled: false
+  jpa:
+    hibernate:
+      ddl-auto: none
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+
+management:
+  endpoints:
+    enabled-by-default: false
