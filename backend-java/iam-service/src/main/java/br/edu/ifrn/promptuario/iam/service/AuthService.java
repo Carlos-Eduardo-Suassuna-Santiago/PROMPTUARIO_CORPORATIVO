@@ -139,7 +139,10 @@ public class AuthService {
         refreshTokenRepository.revokeAllByUserId(user.getId());
     }
 
-    private TokenResponseDTO issueTokenPair(User user) {
+    /**
+     * Emite um novo par de tokens para um usuário já autenticado por um provedor confiável.
+     */
+    public TokenResponseDTO issueTokenPair(User user) {
         String accessToken = jwtTokenProvider.generateAccessToken(user);
         String refreshToken = jwtTokenProvider.generateRefreshToken(user);
         refreshTokenRepository.save(new RefreshToken(
