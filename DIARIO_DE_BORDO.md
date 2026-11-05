@@ -257,6 +257,46 @@ Foi criada a base do API Gateway Java reativo com configuração tipada dos serv
 
 ---
 
+## 2026-11-05 — Validação de JWT e Tracing no Gateway
+
+### 📋 Implementação Proposta
+
+- Implementar na borda a validação de identidade, o bloqueio de tokens revogados e a propagação de dados de identidade e rastreamento, sem operações bloqueantes.
+
+---
+
+### ✅ O que foi Implementado
+
+- Atualização de `SecurityConfig` com os endpoints públicos solicitados, CSRF desabilitado e `NoOpServerSecurityContextRepository` para manter a segurança stateless.
+- Implementação de `JwtBlacklistGlobalFilter`, que consulta reativamente a chave Redis `blacklist:<token>` para Bearer tokens e rejeita tokens revogados com HTTP 401 e corpo JSON `{"detail":"Token revogado"}`.
+- Propagação dos headers `X-User-Id`, `X-User-Role`, `X-User-Email` e `X-Gateway` usando claims do `JwtAuthenticationToken` validado pelo Resource Server.
+- Implementação de `RequestTracingGlobalFilter`, que preserva IDs de rastreamento enviados pelo cliente ou gera um UUID, propaga `X-Correlation-Id` e `X-Request-Id` na requisição e resposta e define `X-Forwarded-For` pelo endereço remoto.
+- Definição de ordem para executar tracing antes da verificação de blacklist e, em ambos os filtros, continuação do pipeline com tipos e operadores reativos.
+- Inclusão de testes para token revogado, headers de identidade, IDs de tracing e IP remoto.
+
+---
+
+### ❌ O que deu Erro
+
+- Os primeiros testes utilizaram métodos/casts que não existem ou não são válidos para os mocks reativos desta versão do Spring. Os testes foram ajustados para usar `ServerWebExchange` e predicados assíncronos, sem alterar a lógica de produção.
+- A combinação de busca estática e build em um único comando não era compatível com o shell Fish; a busca e a suíte foram executadas separadamente.
+
+---
+
+### 🟢 O que Funcionou
+
+- `./mvnw clean test` concluído com 7 testes, 0 falhas e 0 erros.
+- Busca estática sem resultados para `.block()` e `toFuture().get()` nos filtros.
+- Verificada resposta 401 com corpo JSON para token revogado, sem chamada ao downstream; verificadas também a propagação de claims e os headers de tracing.
+
+---
+
+### 📝 Resumo do Dia
+
+A camada de identidade e controle de tokens revogados do Gateway foi concluída sobre Spring Security reativo. Tokens revogados são bloqueados por consulta assíncrona ao Redis; tokens validados propagam claims aos serviços downstream, enquanto o filtro de tracing mantém IDs de correlação e o IP do cliente. A implementação não contém chamadas bloqueantes e passou nos 7 testes da suíte.
+
+---
+
 <!-- TEMPLATE PARA NOVO DIA — Copie o bloco abaixo ao iniciar uma nova entrada -->
 
 <!--
