@@ -57,7 +57,7 @@ public class TimeSlot {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    protected TimeSlot() {
+    public TimeSlot() {
     }
 
     @jakarta.persistence.PrePersist

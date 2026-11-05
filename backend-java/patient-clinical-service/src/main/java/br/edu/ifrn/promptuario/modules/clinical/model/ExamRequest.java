@@ -77,7 +77,7 @@ public class ExamRequest {
     @OneToMany(mappedBy = "exam", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ExamRequestHistory> history = new ArrayList<>();
 
-    protected ExamRequest() {
+    public ExamRequest() {
     }
 
     @jakarta.persistence.PrePersist
