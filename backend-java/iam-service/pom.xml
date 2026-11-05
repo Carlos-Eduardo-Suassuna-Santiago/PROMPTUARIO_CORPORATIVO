@@ -22,7 +22,7 @@
         <nimbus-jose-jwt.version>9.37.3</nimbus-jose-jwt.version>
         <springdoc.version>2.5.0</springdoc.version>
         <googleauth.version>1.5.0</googleauth.version>
-        <testcontainers.version>1.20.2</testcontainers.version>
+        <testcontainers.version>1.21.4</testcontainers.version>
     </properties>
 
     <dependencyManagement>

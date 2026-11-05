@@ -151,6 +151,7 @@ Dia focado no avanço da camada de persistência e segurança do ecossistema Jav
 - Implementação do modelo de domínio, entidades JPA e repositórios Spring Data JPA para os módulos Shared, Patient e Clinical no serviço unificado (`/backend-java/patient-clinical-service`).
 - Criação e estruturação da camada de DTOs (Data Transfer Objects) e validações com Jakarta Bean Validation (`jakarta.validation.constraints.*`) para os módulos Patient e Clinical na branch `feature/DTO-validacoes-jakarta`.
 - Inicialização da Fase 1 do microsserviço de identidade e acesso em Java (`/backend-java/iam-service`), incluindo dependências Maven, configurações base e infraestrutura de integração.
+- Implementação da Fase 3 do IAM Java: entidades JPA, enum de papéis, repositórios Spring Data e teste de integração com PostgreSQL 15.
 
 ---
 
@@ -186,6 +187,13 @@ Dia focado no avanço da camada de persistência e segurança do ecossistema Jav
   - Implementação de `IamServiceApplication` com `@SpringBootApplication` e `@EnableScheduling`.
   - Implementação de `JwtProperties` para o mapeamento tipado e validado de `app.security.jwt` e de `RedisConfig` com `StringRedisTemplate` serializado como texto, apto a operações com TTL.
   - Compilação do módulo concluída com Java 21 e Maven, sem falhas após os ajustes de ambiente e dependências.
+- **Entidades e Repositórios do IAM — Fase 3 (`backend-java/iam-service`)**:
+  - Implementação das entidades `User`, `RefreshToken`, `PasswordResetToken` e `OAuthAccount`, além do enum `Role` com os papéis `ADMIN`, `DOCTOR`, `ATTENDANT` e `PATIENT`.
+  - Mapeamento das relações JPA com carregamento preguiçoso, remoção em cascata e geração de UUID v4 no Java; os timestamps são preenchidos automaticamente por Hibernate.
+  - Compatibilização do campo `role` com o tipo enumerado nativo `user_role` do PostgreSQL definido pelo Flyway.
+  - Proteção contra ciclos de serialização das relações bidirecionais com `@JsonIgnore`.
+  - Criação de `UserRepository`, `RefreshTokenRepository`, `PasswordResetRepository` e `OAuthAccountRepository`, incluindo busca case-insensitive por email, consultas de tokens ativos e revogação global de refresh tokens.
+  - Inclusão do teste de integração `IamPersistenceIntegrationTest`, que valida migração Flyway, mapeamentos Hibernate e consultas de todos os repositórios em PostgreSQL 15 via Testcontainers.
 
 ---
 
@@ -193,6 +201,7 @@ Dia focado no avanço da camada de persistência e segurança do ecossistema Jav
 
 - A dependência `org.testcontainers:redis` não possui módulo publicado compatível no BOM utilizado, resultando em erro de versão ausente durante a resolução do Maven. Foi substituída por `org.testcontainers:testcontainers`, que permite o uso do Redis com `GenericContainer` nos testes.
 - O Maven fornecido pela IDE foi iniciado com Java 17, o que causou o erro `release version 21 not supported`. A compilação foi reexecutada com `JAVA_HOME` apontando para o Corretto Java 21 e finalizada com sucesso.
+- A primeira execução do teste de integração usou Testcontainers 1.20.2, cujo cliente Docker API 1.32 foi recusado pelo daemon local, que exige API 1.40 ou superior. A versão foi atualizada para 1.21.4, compatível com engines Docker recentes, e a suíte passou sem erros.
 
 ---
 
@@ -205,12 +214,13 @@ Dia focado no avanço da camada de persistência e segurança do ecossistema Jav
 - Conversão limpa entre DTOs e entidades mantendo integridade dos dados e regras de negócio.
 - Resolução das dependências e compilação limpa do `iam-service` com `mvn clean compile`, Java 21 e Spring Boot 3.3.4.
 - Carregamento das configurações de PostgreSQL, Redis, RabbitMQ e JWT a partir de variáveis de ambiente com valores padrão seguros para desenvolvimento local.
+- Teste de integração da persistência concluído com 1 teste executado, 0 falhas e 0 erros; Flyway, enum nativo PostgreSQL, Hibernate e os quatro repositórios foram validados em conjunto.
 
 ---
 
 ### 📝 Resumo do Dia
 
-Finalização da camada de persistência (entidades de domínio, tabelas de auditoria e repositórios Spring Data JPA) e da camada de transferência de dados (36 DTOs com validações Jakarta) no serviço unificado `patient-clinical-service` em Java. Foram criadas mais de 20 classes de modelo, mais de 15 interfaces de repositório Spring Data JPA e 36 DTOs validados cobrindo todo o bounded context de pacientes, consultas, prontuários, agendamentos e prescrições. Também foi concluída a Fase 1 do `iam-service` Java, deixando o módulo preparado para as próximas fases de migração de schema, entidades, autenticação e endpoints.
+Finalização da camada de persistência (entidades de domínio, tabelas de auditoria/histórico e repositórios Spring Data JPA) e da camada de transferência de dados (36 DTOs com validações Jakarta) no serviço unificado `patient-clinical-service` em Java, cobrindo todo o bounded context de pacientes, consultas, prontuários, agendamentos e prescrições. No `iam-service` Java, foram concluídas com sucesso as Fases 1 e 3, disponibilizando a infraestrutura base, o modelo de persistência, os repositórios Spring Data e a suíte de testes de integração com PostgreSQL 15 via Testcontainers, preparando ambos os módulos para as próximas etapas de autenticação, lógica de serviços e endpoints REST.
 
 ---
 
