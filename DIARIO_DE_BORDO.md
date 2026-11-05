@@ -259,3 +259,33 @@ Breve parágrafo com o balanço geral do dia, decisões tomadas e próximos pass
 
 ---
 -->
+---
+
+## 2026-11-05 — Fase 5: Serviços de Domínio e Transacionalidade de Pacientes
+
+### Implementação Proposta
+
+- Implementar os serviços de domínio do módulo Patient com transações ACID, regras de negócio, auditoria, eventos de domínio e anonimização conforme a LGPD.
+
+### O que foi Implementado
+
+- Criados `PatientService`, `AllergyService`, `VaccineService`, `MedicationService` e `PatientDocumentService`.
+- Implementados gerenciamento de pacientes, alergias, vacinas, doses subsequentes, medicações contínuas e exclusão lógica de documentos.
+- Registrado `MedicationHistory` imutável com snapshot JSON do estado anterior.
+- Criado `AuditService` com `Propagation.MANDATORY` e adicionados eventos de paciente e alergia.
+- Adicionadas as exceções `ResourceNotFoundException`, `ConflictException` e `BusinessException`.
+- Alterações registradas nos commits `70c1a4e` e `7ccbc61` da branch `feature/modulo-patient`.
+
+### O que deu Erro
+
+- O Maven não estava no PATH e o Java padrão era a versão 8; foram utilizados o JDK 21 do Eclipse Adoptium e o Maven 3.9.16 já disponíveis localmente.
+
+### O que Funcionou
+
+- Compilação do `patient-clinical-service` concluída com sucesso usando JDK 21 e Maven 3.9.16 com `-DskipTests compile`.
+- Todas as operações de escrita foram configuradas com `@Transactional(rollbackFor = Exception.class)`.
+
+### Resumo do Dia
+
+Fase 5 concluída com serviços de domínio, transacionalidade, auditoria mandatória, eventos, histórico de medicações, anonimização LGPD e exclusão lógica de documentos.
+
