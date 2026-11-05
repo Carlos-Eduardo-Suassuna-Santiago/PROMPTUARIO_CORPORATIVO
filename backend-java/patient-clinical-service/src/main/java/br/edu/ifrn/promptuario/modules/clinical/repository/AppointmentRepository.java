@@ -9,6 +9,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.Collection;
+import java.util.List;
 
 public interface AppointmentRepository extends JpaRepository<Appointment, String> {
 
@@ -40,4 +42,7 @@ public interface AppointmentRepository extends JpaRepository<Appointment, String
             String doctorId,
             Instant scheduledAt,
             AppointmentStatus status);
+
+    List<Appointment> findByPatient_IdAndScheduledAtAfterAndStatusIn(
+            String patientId, Instant scheduledAt, Collection<AppointmentStatus> statuses);
 }
