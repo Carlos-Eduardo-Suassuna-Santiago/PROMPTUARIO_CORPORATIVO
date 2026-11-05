@@ -92,3 +92,6 @@ IDEIAS_DE_EVOLUCAO.md
 COMMIT_CONVENTION.md
 
 *.diagramas/*
+
+# Ignorar pasta de planos de migração
+/Planos-Migração/

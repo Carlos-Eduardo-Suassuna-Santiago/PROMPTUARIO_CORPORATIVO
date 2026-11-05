@@ -811,9 +811,21 @@ audit_cross_router = APIRouter(prefix="/audit", tags=["Auditoria"])
 def _get_db_urls() -> dict[str, str]:
     return {
         "iam":      settings.IAM_DB_URL,
-        "patient":  settings.PATIENT_DB_URL,
+        # Patient e Clinical usam o mesmo banco do serviço unificado.
+        # Consultá-lo uma única vez evita duplicar os eventos no resultado.
         "clinical": settings.CLINICAL_DB_URL,
     }
+
+
+def _normalize_audit_service(service: Optional[str]) -> Optional[str]:
+    """Converte nomes expostos pelo frontend para os alvos de banco atuais."""
+    aliases = {
+        "iam-service": "iam",
+        "patient-service": "clinical",
+        "patient": "clinical",
+        "clinical-service": "clinical",
+    }
+    return aliases.get(service, service) if service else None
 
 
 @audit_cross_router.get(
@@ -836,6 +848,7 @@ async def get_audit_logs(
     page: int = Query(1, ge=1),
     size: int = Query(50, ge=1, le=200),
 ):
+    service = _normalize_audit_service(service)
     db_urls = _get_db_urls()
     services = [service] if service and service != "all" else list(db_urls.keys())
     all_logs: list[dict] = []
@@ -922,6 +935,7 @@ async def export_audit_logs(
     import csv
     from fastapi.responses import StreamingResponse
 
+    service = _normalize_audit_service(service)
     db_urls = _get_db_urls()
     services = [service] if service and service != "all" else list(db_urls.keys())
     all_logs: list[dict] = []

@@ -7,8 +7,7 @@ O API Gateway é a porta de entrada do sistema. Ele recebe as chamadas externas 
 ```
 Internet → API Gateway (:8000)
               ├── IAM Service        (:8001) — Auth, Usuários, Roles
-              ├── Patient Service    (:8002) — Pacientes, Alergias, Vacinas
-              ├── Clinical Service   (:8003) — Consultas, Prontuários, Prescrições
+              ├── Patient-Clinical        (:8002) — UNIFICADO: pacientes, consultas, prontuários, prescrições
               ├── AI Service         (:8004) — Análise clínica com LLM
               └── Reporting Service  (:8005) — Relatórios assíncronos (Celery + S3)
 ```
@@ -26,7 +25,7 @@ Esse serviço existe para simplificar o acesso ao sistema. Em vez de o cliente p
 1. O cliente envia uma requisição para o gateway.
 2. O gateway valida se a pessoa está autenticada (via JWT + Redis blacklist).
 3. Ele identifica qual microsserviço deve atender a chamada.
-4. Encaminha a requisição para o serviço correto (IAM, Patient, Clinical, AI ou Reporting).
+4. Encaminha a requisição para o serviço correto (IAM, Patient-Clinical, AI ou Reporting).
 5. O resultado volta ao cliente de forma transparente.
 
 ## O que ele faz na prática
@@ -50,7 +49,7 @@ Esse serviço existe para simplificar o acesso ao sistema. Em vez de o cliente p
 ## Pré-requisitos
 
 - Redis disponível
-- os demais microsserviços em execução (IAM, Patient, Clinical, AI, Reporting)
+- os demais microsserviços em execução (IAM, Patient-Clinical, AI, Reporting)
 - Python 3.12+
 
 ## Início rápido
@@ -78,8 +77,8 @@ docker compose up --build gateway
 | GET    | `/healthz/services`         | Status agregado dos microsserviços           |
 | POST   | `/api/v1/auth/login`        | Login centralizado (roteia para IAM)         |
 | GET    | `/api/v1/users`             | Lista usuários (roteia para IAM)             |
-| GET    | `/api/v1/patients`          | Lista pacientes (roteia para Patient)        |
-| GET    | `/api/v1/records`           | Lista prontuários (roteia para Clinical)     |
+| GET    | `/api/v1/patients`          | Lista pacientes (roteia para Patient-Clinical) |
+| GET    | `/api/v1/records`           | Lista prontuários (roteia para Patient-Clinical) |
 | POST   | `/api/v1/ai/analyze`        | Solicita análise (roteia para AI)            |
 | POST   | `/api/v1/reports/export`    | Solicita relatório (roteia para Reporting)   |
 
@@ -89,8 +88,7 @@ docker compose up --build gateway
 |----------------------|----------------------------------------|
 | API Gateway Docs     | `http://localhost:8000/docs`           |
 | IAM Service Docs     | `http://localhost:8001/docs`           |
-| Patient Service Docs | `http://localhost:8002/docs`           |
-| Clinical Service Docs| `http://localhost:8003/docs`           |
+| Patient-Clinical Docs (unificado) | `http://localhost:8002/docs` |
 | AI Service Docs      | `http://localhost:8004/docs`           |
 | Reporting Service Docs| `http://localhost:8005/docs`          |
 | RabbitMQ Mgmt        | `http://localhost:15672`               |
@@ -122,8 +120,12 @@ curl http://localhost:8000/healthz
 | Variável                     | Descrição                              | Default       |
 |------------------------------|----------------------------------------|---------------|
 | `IAM_SERVICE_URL`            | URL do IAM Service                     | —             |
-| `PATIENT_SERVICE_URL`        | URL do Patient Service                 | —             |
-| `CLINICAL_SERVICE_URL`       | URL do Clinical Service                | —             |
+| `PATIENT_SERVICE_URL`        | Destino Patient no modo unificado     | `http://patient-clinical-service:8000` |
+| `CLINICAL_SERVICE_URL`       | Destino Clinical no modo unificado    | `http://patient-clinical-service:8000` |
+| `PATIENT_CLINICAL_SERVICE_URL` | URL do serviço unificado              | `http://patient-clinical-service:8000` |
+| `LEGACY_PATIENT_SERVICE_URL` | Destino Patient para rollback          | `http://patient-service:8000` |
+| `LEGACY_CLINICAL_SERVICE_URL` | Destino Clinical para rollback        | `http://clinical-service:8000` |
+| `GATEWAY_ROUTING_MODE`      | `unified` ou `legacy`                 | `unified` |
 | `AI_SERVICE_URL`             | URL do AI Service                      | —             |
 | `REPORTING_SERVICE_URL`      | URL do Reporting Service               | —             |
 | `JWT_SECRET_KEY`             | Chave secreta JWT (≥32 caracteres)     | *obrigatório* |
@@ -168,3 +170,21 @@ pytest -q
 ## Observação final
 
 O gateway é a camada de entrada do sistema. Ele organiza o tráfego e permite que a arquitetura fique modular e mais simples de manter.
+## Roteamento durante a migração
+
+O modo padrão `GATEWAY_ROUTING_MODE=unified` encaminha as rotas públicas abaixo para `patient-clinical-service`, mantendo as URLs externas inalteradas:
+
+- `/api/v1/patients/*`
+- `/api/v1/appointments/*`
+- `/api/v1/schedules/*`
+- `/api/v1/records/*`
+
+Rollback reversível por configuração:
+
+```bash
+GATEWAY_ROUTING_MODE=legacy
+LEGACY_PATIENT_SERVICE_URL=http://patient-service:8000
+LEGACY_CLINICAL_SERVICE_URL=http://clinical-service:8000
+```
+
+A alteração requer recriar apenas o Gateway; os serviços antigos permanecem disponíveis e nenhum dado ou evento externo é removido.

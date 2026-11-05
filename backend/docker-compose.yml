@@ -1,5 +1,5 @@
 services:
-  # ─── DATABASES ────────────────────────────────────────────────
+  # Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ DATABASES Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   db-iam:
     image: postgres:15-alpine
     restart: unless-stopped
@@ -16,33 +16,17 @@ services:
       retries: 5
     networks: [ backend ]
 
-  db-patient:
-    image: postgres:15-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: patient
-      POSTGRES_PASSWORD: ${DB_PATIENT_PASSWORD:-patient_pass}
-      POSTGRES_DB: patient_db
-    volumes:
-      - patient_data:/var/lib/postgresql/data
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U patient -d patient_db" ]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    networks: [ backend ]
-
-  db-clinical:
+  db-patient-clinical:
     image: postgres:15-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: clinical
       POSTGRES_PASSWORD: ${DB_CLINICAL_PASSWORD:-clinical_pass}
-      POSTGRES_DB: clinical_db
+      POSTGRES_DB: patient_clinical_db
     volumes:
-      - clinical_data:/var/lib/postgresql/data
+      - patient_clinical_data:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U clinical -d clinical_db" ]
+      test: [ "CMD-SHELL", "pg_isready -U clinical -d patient_clinical_db" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -80,7 +64,7 @@ services:
       retries: 5
     networks: [ backend ]
 
-  # ─── INFRASTRUCTURE ───────────────────────────────────────────
+  # Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ INFRASTRUCTURE Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   redis:
     image: redis:7-alpine
     restart: unless-stopped
@@ -133,7 +117,7 @@ services:
       - "9000:9000"
       - "9001:9001"
 
-  # ─── MICROSERVICES ────────────────────────────────────────────
+  # Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ MICROSERVICES Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   iam-service:
     build:
       context: .
@@ -161,36 +145,20 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    ports:
+      - "8001:8000"
     networks: [ backend ]
 
-  patient-service:
-    build:
-      context: .
-      dockerfile: patient-service/Dockerfile
-    restart: unless-stopped
-    environment:
-      DATABASE_URL: postgresql+asyncpg://patient:${DB_PATIENT_PASSWORD:-patient_pass}@db-patient:5432/patient_db
-      RABBITMQ_URL: amqp://promptuario:${RABBITMQ_PASSWORD:-promptuario_pass}@rabbitmq:5672/
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-super-secret-change-in-production-32chars}
-      JWT_ALGORITHM: HS256
-      SERVICE_NAME: patient-service
-      LOG_LEVEL: INFO
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
-    depends_on:
-      db-patient:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-    networks: [ backend ]
 
-  clinical-service:
+  patient-clinical-service:
     build:
       context: .
-      dockerfile: clinical-service/Dockerfile
+      dockerfile: patient-clinical-service/Dockerfile
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql+asyncpg://clinical:${DB_CLINICAL_PASSWORD:-clinical_pass}@db-clinical:5432/clinical_db
+      DATABASE_URL: postgresql+asyncpg://clinical:${DB_CLINICAL_PASSWORD:-clinical_pass}@db-patient-clinical:5432/patient_clinical_db
       RABBITMQ_URL: amqp://promptuario:${RABBITMQ_PASSWORD:-promptuario_pass}@rabbitmq:5672/
+      REDIS_URL: redis://redis:6379/0
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-super-secret-change-in-production-32chars}
       JWT_ALGORITHM: HS256
       S3_ENDPOINT: http://minio:9000
@@ -198,26 +166,32 @@ services:
       S3_ACCESS_KEY: promptuario
       S3_SECRET_KEY: promptuario_pass
       S3_BUCKET_PRESCRIPTIONS: prescriptions
-      SERVICE_NAME: clinical-service
+      S3_BUCKET_PATIENT_DOCUMENTS: patient-documents
+      SERVICE_NAME: patient-clinical-service
       LOG_LEVEL: INFO
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       CELERY_BROKER_URL: redis://redis:6379/3
       CELERY_RESULT_BACKEND: redis://redis:6379/3
     depends_on:
-      db-clinical:
+      db-patient-clinical:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       minio:
         condition: service_healthy
+    ports:
+      - "8002:8000"
     networks: [ backend ]
 
-  clinical-worker:
+  patient-clinical-worker:
     build:
       context: .
-      dockerfile: clinical-service/Dockerfile.worker
+      dockerfile: patient-clinical-service/Dockerfile.worker
     environment:
-      DATABASE_URL: postgresql+asyncpg://clinical:${DB_CLINICAL_PASSWORD:-clinical_pass}@db-clinical:5432/clinical_db
+      DATABASE_URL: postgresql+asyncpg://clinical:${DB_CLINICAL_PASSWORD:-clinical_pass}@db-patient-clinical:5432/patient_clinical_db
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-super-secret-change-in-production-32chars}
       CELERY_BROKER_URL: redis://redis:6379/3
       CELERY_RESULT_BACKEND: redis://redis:6379/3
       S3_ENDPOINT: http://minio:9000
@@ -225,8 +199,9 @@ services:
       S3_ACCESS_KEY: promptuario
       S3_SECRET_KEY: promptuario_pass
       S3_BUCKET_PRESCRIPTIONS: prescriptions
+      S3_BUCKET_PATIENT_DOCUMENTS: patient-documents
     depends_on:
-      db-clinical:
+      db-patient-clinical:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -278,8 +253,6 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/1
       CELERY_RESULT_BACKEND: redis://redis:6379/1
       RABBITMQ_URL: amqp://promptuario:${RABBITMQ_PASSWORD:-promptuario_pass}@rabbitmq:5672/
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-super-secret-change-in-production-32chars}
-      JWT_ALGORITHM: HS256
       S3_ENDPOINT: http://minio:9000
       S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
       S3_ACCESS_KEY: promptuario
@@ -287,10 +260,12 @@ services:
       S3_BUCKET_REPORTS: reports
       SERVICE_NAME: reporting-service
       LOG_LEVEL: INFO
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-super-secret-change-in-production-32chars}
+      JWT_ALGORITHM: HS256
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       IAM_DB_URL: postgresql://iam:iam_pass@db-iam:5432/iam_db
-      PATIENT_DB_URL: postgresql://patient:patient_pass@db-patient:5432/patient_db
-      CLINICAL_DB_URL: postgresql://clinical:clinical_pass@db-clinical:5432/clinical_db
+      PATIENT_DB_URL: postgresql://clinical:clinical_pass@db-patient-clinical:5432/patient_clinical_db
+      CLINICAL_DB_URL: postgresql://clinical:clinical_pass@db-patient-clinical:5432/patient_clinical_db
     depends_on:
       db-reporting:
         condition: service_healthy
@@ -307,6 +282,8 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+asyncpg://reporting:${DB_REPORTING_PASSWORD:-reporting_pass}@db-reporting:5432/reporting_db
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-super-secret-change-in-production-32chars}
+      JWT_ALGORITHM: HS256
       CELERY_BROKER_URL: redis://redis:6379/1
       CELERY_RESULT_BACKEND: redis://redis:6379/1
       RABBITMQ_URL: amqp://promptuario:${RABBITMQ_PASSWORD:-promptuario_pass}@rabbitmq:5672/
@@ -329,6 +306,8 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+asyncpg://reporting:${DB_REPORTING_PASSWORD:-reporting_pass}@db-reporting:5432/reporting_db
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-super-secret-change-in-production-32chars}
+      JWT_ALGORITHM: HS256
       CELERY_BROKER_URL: redis://redis:6379/1
       CELERY_RESULT_BACKEND: redis://redis:6379/1
       CELERY_BEAT_SCHEDULE_FILENAME: /tmp/celerybeat-schedule
@@ -339,7 +318,7 @@ services:
       - redis
     networks: [ backend ]
 
-  # ─── API GATEWAY ──────────────────────────────────────────────
+  # Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ API GATEWAY Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   gateway:
     build:
       context: .
@@ -347,8 +326,7 @@ services:
     restart: unless-stopped
     environment:
       IAM_SERVICE_URL: http://iam-service:8000
-      PATIENT_SERVICE_URL: http://patient-service:8000
-      CLINICAL_SERVICE_URL: http://clinical-service:8000
+      PATIENT_CLINICAL_SERVICE_URL: ${PATIENT_CLINICAL_SERVICE_URL:-http://patient-clinical-service:8000}
       AI_SERVICE_URL: http://ai-service:8000
       REPORTING_SERVICE_URL: http://reporting-service:8000
       RABBITMQ_MANAGEMENT_URL: http://guest:guest@rabbitmq:15672
@@ -359,15 +337,14 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
     depends_on:
       - iam-service
-      - patient-service
-      - clinical-service
+      - patient-clinical-service
       - ai-service
       - reporting-service
     networks: [ backend ]
     ports:
       - "8000:8000"
 
-  # ─── EXPORTERS ──────────────────────────────────────────────
+  # Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ EXPORTERS Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   # RabbitMQ natively exposes Prometheus metrics on port 15692
   # (enabled via management plugin). Scraped directly in prometheus.yml.
   # No separate exporter image needed.
@@ -394,7 +371,7 @@ services:
     networks: [ backend ]
     restart: unless-stopped
 
-  # ─── PROMETHEUS ──────────────────────────────────────────────
+  # Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ PROMETHEUS Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   prometheus:
     image: prom/prometheus:v2.54.1
     volumes:
@@ -462,7 +439,7 @@ services:
     networks: [ backend ]
     restart: unless-stopped
 
-  # ─── EMAIL SERVICE (MAILPIT) ───────────────────────────────────
+  # Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ EMAIL SERVICE (MAILPIT) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   mailpit:
     image: axllent/mailpit:v1.20
     ports:
@@ -471,7 +448,7 @@ services:
     networks: [ backend ]
     restart: unless-stopped
 
-  # ─── BACKUP SERVICE ────────────────────────────────────────────
+  # Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ BACKUP SERVICE Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   backup-service:
     build:
       context: .
@@ -491,9 +468,7 @@ services:
     depends_on:
       db-iam:
         condition: service_healthy
-      db-patient:
-        condition: service_healthy
-      db-clinical:
+      db-patient-clinical:
         condition: service_healthy
       db-reporting:
         condition: service_healthy
@@ -510,8 +485,7 @@ networks:
 
 volumes:
   iam_data:
-  patient_data:
-  clinical_data:
+  patient_clinical_data:
   reporting_data:
   ai_data:
   redis_data:

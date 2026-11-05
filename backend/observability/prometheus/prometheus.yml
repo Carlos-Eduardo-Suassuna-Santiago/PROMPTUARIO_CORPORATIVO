@@ -15,13 +15,9 @@ scrape_configs:
     static_configs:
       - targets: ["iam-service:8000"]
     metrics_path: /metrics
-  - job_name: patient-service
+  - job_name: patient-clinical-service
     static_configs:
-      - targets: ["patient-service:8000"]
-    metrics_path: /metrics
-  - job_name: clinical-service
-    static_configs:
-      - targets: ["clinical-service:8000"]
+      - targets: ["patient-clinical-service:8000"]
     metrics_path: /metrics
   - job_name: ai-service
     static_configs:

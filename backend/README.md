@@ -6,14 +6,19 @@ Sistema de prontuário eletrônico (EHR) distribuído construído com FastAPI, R
 
 ```
 Internet → API Gateway :8000
-             ├── IAM Service        :8001  (Auth, Usuários, Roles)
-             ├── Patient Service    :8002  (Pacientes, Alergias, Vacinas)
-             ├── Clinical Service   :8003  (Consultas, Prontuários, Prescrições)
-             ├── AI Service         :8004  (Análise clínica com LLM)
-             └── Reporting Service  :8005  (Relatórios assíncronos)
+             ├── IAM Service             :8001  (Auth, Usuários, Roles)
+             ├── Patient-Clinical        :8002  (Pacientes + Consultas, Prontuários, Prescrições — serviço unificado)
+             ├── AI Service              :8004  (Análise clínica com LLM)
+             └── Reporting Service       :8005  (Relatórios assíncronos)
+
+> **Unificação Concluída (Fase 12):** `patient-service` e `clinical-service` foram
+> integralmente substituídos por `patient-clinical-service` (:8002, banco único
+> `patient_clinical_db`). As URLs públicas via Gateway (`/patients`,
+> `/appointments`, `/schedules`, `/records`) foram 100% preservadas. Os backups
+> dos bancos legados estão arquivados em `backend/.phase12-backups/`.
 ```
 
-No `docker-compose.yml`, cada microserviço escuta em `8000` dentro do container e é exposto no host nas portas `8000` a `8005`. O endpoint de health padronizado é `/healthz`.
+No `docker-compose.yml`, cada microserviço escuta em `8000` dentro do container e é exposto no host nas portas `8000` (gateway), `8001` (IAM), `8002` (patient-clinical), `8004` (AI) e `8005` (reporting). O endpoint de health padronizado é `/healthz`.
 
 ## Stack
 
@@ -64,10 +69,8 @@ make health
 | API Gateway Docs | http://localhost:8000/docs |
 | IAM Health | http://localhost:8001/healthz |
 | IAM Docs | http://localhost:8001/docs |
-| Patient Health | http://localhost:8002/healthz |
-| Patient Docs | http://localhost:8002/docs |
-| Clinical Health | http://localhost:8003/healthz |
-| Clinical Docs | http://localhost:8003/docs |
+| Patient-Clinical Health | http://localhost:8002/healthz |
+| Patient-Clinical Docs | http://localhost:8002/docs |
 | AI Health | http://localhost:8004/healthz |
 | AI Docs | http://localhost:8004/docs |
 | Reporting Health | http://localhost:8005/healthz |
