@@ -366,6 +366,15 @@ A camada de identidade e controle de tokens revogados do Gateway foi concluída 
 
 ---
 
+## 2026-11-05 — Mensageria e armazenamento de documentos
+
+### Observações
+
+- A revisão do upload de documentos identificou risco de objeto órfão no S3 se a transação do banco falhar durante o commit; a compensação atual trata exceções anteriores ao retorno do método.
+- A compilação do módulo `patient-clinical-service` não foi validada durante esta implementação, pois o comando Maven não estava disponível no ambiente.
+
+---
+
 <!-- TEMPLATE PARA NOVO DIA — Copie o bloco abaixo ao iniciar uma nova entrada -->
 
 <!--
