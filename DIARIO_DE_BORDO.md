@@ -146,6 +146,7 @@ Dia focado no avanço da camada de persistência e segurança do ecossistema Jav
 ### 📋 Implementação Proposta
 
 - Implementação do modelo de domínio, entidades JPA e repositórios Spring Data JPA para os módulos Shared, Patient e Clinical no serviço unificado (`/backend-java/patient-clinical-service`).
+- Criação e estruturação da camada de DTOs (Data Transfer Objects) e validações com Jakarta Bean Validation (`jakarta.validation.constraints.*`) para os módulos Patient e Clinical na branch `feature/DTO-validacoes-jakarta`.
 
 ---
 
@@ -159,18 +160,28 @@ Dia focado no avanço da camada de persistência e segurança do ecossistema Jav
   - Implementação de enums de domínio: `GenderType`, `AllergySeverity`, `DocumentType` e `MedicationChangeType`.
   - Mapeamentos relacionais `@OneToMany`, `@ManyToOne`, índices de banco de dados, constraints de unicidade (ex: CPF e cartão SUS) e chaves UUID.
   - Criação dos repositórios Spring Data JPA: `PatientRepository`, `AllergyRepository`, `ContinuousMedicationRepository`, `MedicationHistoryRepository`, `PatientDocumentRepository` e `VaccineRepository`.
+  - **Camada de DTOs e Validações Jakarta (`modules/patient/dto`)**:
+    - Criação de 18 DTOs com Java Records para entrada e saída de dados: `PatientCreateDto`, `PatientUpdateDto`, `PatientResponseDto`, `PatientListResponseDto`, `PatientSummaryResponseDto`, `AllergyCreateDto`, `AllergyDto`, `AllergyResponseDto`, `MedicationCreateDto`, `MedicationUpdateDto`, `MedicationDto`, `MedicationResponseDto`, `DocumentDto`, `DocumentResponseDto`, `DocumentUploadResponseDto`, `VaccineCreateDto`, `VaccineDto` e `VaccineResponseDto`.
+    - Validações estritas com Jakarta Validation: `@NotBlank`, `@Size`, `@Email`, `@Pattern` para validação de formato de CPF (`^\d{3}\.\d{3}\.\d{3}-\d{2}$|^\d{11}$`), etc.
+    - Métodos declarativos de conversão bidirecional entre DTOs e entidades (`toEntity()`).
 - **Módulo Clínico (`modules/clinical`)**:
   - Implementação das entidades JPA centrais: `Appointment`, `DoctorSchedule`, `TimeSlot`, `MedicalRecord`, `Prescription`, `ExamRequest` e `MedicalCertificate`.
   - Implementação de entidades de auditoria/histórico para rastreabilidade de alterações clínicas: `MedicalRecordHistory`, `PrescriptionHistory`, `ExamRequestHistory` e `MedicalCertificateHistory`.
   - Implementação dos enums: `AppointmentStatus`, `AppointmentType` e `ExamUrgency`.
   - Mapeamento de relacionamentos entre agendamentos, horários de médicos e prontuários com chaves estrangeiras e integridade referencial.
   - Criação dos repositórios Spring Data JPA: `AppointmentRepository`, `DoctorScheduleRepository`, `TimeSlotRepository`, `MedicalRecordRepository`, `MedicalRecordHistoryRepository`, `PrescriptionRepository`, `PrescriptionHistoryRepository`, `ExamRequestRepository`, `ExamRequestHistoryRepository`, `MedicalCertificateRepository` e `MedicalCertificateHistoryRepository`.
+  - **Camada de DTOs e Validações Jakarta (`modules/clinical/dto`)**:
+    - Criação de 18 DTOs com Java Records para fluxo de consultas, prontuários, prescrições e exames: `AppointmentCreateDto`, `AppointmentCancelDto`, `AppointmentResponseDto`, `AppointmentListResponseDto`, `MedicalRecordCreateDto`, `MedicalRecordUpdateDto`, `MedicalRecordResponseDto`, `MedicalRecordHistoryResponseDto`, `PrescriptionCreateDto`, `PrescriptionResponseDto`, `MedicationItemDto`, `ExamRequestCreateDto`, `ExamRequestResponseDto`, `ExamResultUpdateDto`, `MedicalCertificateCreateDto`, `MedicalCertificateResponseDto`, `ScheduleCreateDto` e `TimeSlotDto`.
+    - Validações de integridade com Jakarta Validation: campos obrigatórios (`@NotBlank`, `@NotNull`), limites de caracteres (`@Size`) e regras de agendamento.
+    - Métodos `toEntity()` integrados para instanciação segura do modelo de domínio.
+- **Refatoração dos Construtores das Entidades**:
+  - Ajuste de visibilidade dos construtores padrão de `protected` para `public` nas 11 entidades de domínio (`Appointment`, `DoctorSchedule`, `ExamRequest`, `MedicalCertificate`, `MedicalRecord`, `Prescription`, `TimeSlot`, `Allergy`, `ContinuousMedication`, `Patient`, `Vaccine`), viabilizando a conversão via métodos `toEntity()` dos DTOs.
 
 ---
 
 ### ❌ O que deu Erro
 
-_Nenhum erro encontrado durante a modelagem das entidades e repositórios._
+_Nenhum erro encontrado durante a implementação dos DTOs e validações._
 
 ---
 
@@ -178,13 +189,14 @@ _Nenhum erro encontrado durante a modelagem das entidades e repositórios._
 
 - Modelagem completa e rica do modelo relacional em JPA/Hibernate cobrindo todas as regras de domínio legadas de pacientes e prontuários.
 - Definição de histórico e auditoria imutável para prontuários, receitas, pedidos de exames e atestados médicos.
-- Repositórios Spring Data JPA prontos com consultas especializadas para atender a camada de serviço e API REST.
+- Criação de 36 DTOs imutáveis utilizando records do Java 21, garantindo validação de entrada declarativa com Jakarta Validation e desacoplamento das entidades de persistência.
+- Conversão limpa entre DTOs e entidades mantendo integridade dos dados e regras de negócio.
 
 ---
 
 ### 📝 Resumo do Dia
 
-Finalização da camada de persistência e entidades de domínio do `patient-clinical-service` em Java. Foram criadas mais de 20 classes de modelo (incluindo entidades de negócio, enums e tabelas de histórico) e mais de 15 interfaces de repositório Spring Data JPA, cobrindo todo o bounded context de pacientes, consultas, prontuários, agendamentos e prescrições.
+Finalização da camada de persistência (entidades de domínio, tabelas de auditoria e repositórios Spring Data JPA) e da camada de transferência de dados (36 DTOs com validações Jakarta) no serviço unificado `patient-clinical-service` em Java. A aplicação agora possui todos os contratos de entrada e saída validados, prontos para a implementação das regras de negócio na camada de serviço e dos controllers REST.
 
 ---
 
