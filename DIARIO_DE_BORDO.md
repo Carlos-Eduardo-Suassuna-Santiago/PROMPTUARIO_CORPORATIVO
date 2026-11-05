@@ -252,6 +252,52 @@ Finalização da camada de persistência e entidades de domínio do `patient-cli
 
 ---
 
+## 2026-11-05 — Atualização do API Gateway Java
+
+### 📋 Implementação Proposta
+
+- Criar a base do API Gateway reativo em Java e centralizar o roteamento dos serviços, mantendo compatibilidade com as rotas do gateway FastAPI.
+
+---
+
+### ✅ O que foi Implementado
+
+- Configuração do projeto `backend-java/gateway` com Java 21, Spring Boot 3.3.4 e Spring Cloud 2023.0.3, usando WebFlux e Reactor Netty, sem `spring-boot-starter-web`.
+- Instalação do Maven Wrapper oficial 3.3.4, fixado para Maven 3.9.9.
+- Criação de `ServiceEndpointsProperties` para mapear as URIs configuráveis de IAM, Patient/Clinical, AI, Reporting e RabbitMQ Management.
+- Centralização das rotas públicas e protegidas de IAM e AI, das rotas de Patient/Clinical e Reporting e do proxy da interface RabbitMQ.
+- Preservação da rota `/metrics`, também existente no gateway FastAPI.
+- Configuração do proxy RabbitMQ para reescrever o prefixo `/rabbitmq/` e remover o header `Authorization`.
+- Configuração de CORS global com origem ajustável por `FRONTEND_URL`, métodos GET/POST/PUT/PATCH/DELETE/OPTIONS, cabeçalhos livres e credenciais habilitadas.
+- Configuração de validação de JWT HMAC-SHA256 nas rotas protegidas e liberação das rotas públicas de autenticação e debug.
+- Adição global dos headers `X-Content-Type-Options`, `X-Frame-Options` e `Strict-Transport-Security`.
+- Configuração dos endpoints Actuator `health`, `info`, `prometheus` e `gateway`; nível de log de roteamento ajustável por `GATEWAY_LOG_LEVEL`.
+- Inclusão de testes para destinos e predicados das rotas e para a exposição dos endpoints Actuator.
+
+---
+
+### ❌ O que deu Erro
+
+- Maven não estava instalado no ambiente; o Maven Wrapper foi adicionado para permitir executar o build sem instalação global.
+- O endpoint Actuator `gateway` e o scraping Prometheus inicialmente não foram descobertos. A configuração foi ajustada para ativar explicitamente ambos; a inicialização passou a expor quatro endpoints.
+- O Java Language Server do VS Code sinalizou os arquivos Java como fora de um projeto Maven e apontou divergência de pacote. O caminho e as declarações de pacote estão alinhados, e o Maven Wrapper compilou e testou o módulo com sucesso.
+
+---
+
+### 🟢 O que Funcionou
+
+- `./mvnw clean test` concluído com 3 testes, 0 falhas e 0 erros.
+- A árvore de dependências confirmou WebFlux e Reactor Netty, sem o starter Servlet `spring-boot-starter-web`.
+- A tabela de rotas e os quatro endpoints Actuator foram validados no contexto Spring.
+
+---
+
+### 📝 Resumo do Dia
+
+Foi criada a base do API Gateway Java reativo com configuração tipada dos serviços, roteamento centralizado, CORS, segurança JWT, headers HTTP, Actuator e Maven Wrapper. As rotas foram alinhadas ao gateway FastAPI, incluindo o proxy RabbitMQ e `/metrics`. A suíte final passou com 3 testes e o runtime permaneceu não bloqueante, baseado em WebFlux e Netty.
+
+---
+
 <!-- TEMPLATE PARA NOVO DIA — Copie o bloco abaixo ao iniciar uma nova entrada -->
 
 <!--

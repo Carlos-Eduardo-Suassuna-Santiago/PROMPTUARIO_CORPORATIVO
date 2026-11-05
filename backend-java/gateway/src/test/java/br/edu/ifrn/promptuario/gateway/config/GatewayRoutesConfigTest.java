@@ -1,0 +1,86 @@
+package br.edu.ifrn.promptuario.gateway.config;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.net.URI;
+import java.util.Map;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.actuate.autoconfigure.endpoint.web.WebEndpointProperties;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.actuate.endpoint.web.WebEndpointsSupplier;
+import org.springframework.cloud.gateway.route.Route;
+import org.springframework.cloud.gateway.route.RouteLocator;
+import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
+import org.springframework.mock.web.server.MockServerWebExchange;
+import org.springframework.web.server.ServerWebExchange;
+import reactor.test.StepVerifier;
+
+@SpringBootTest
+class GatewayRoutesConfigTest {
+
+    @Autowired
+    private RouteLocator routeLocator;
+
+        @Autowired
+        private WebEndpointsSupplier webEndpointsSupplier;
+
+        @Autowired
+        private WebEndpointProperties webEndpointProperties;
+
+    @Test
+    void registersRoutesWithExpectedServiceDestinations() {
+        StepVerifier.create(routeLocator.getRoutes().collectMap(Route::getId, Route::getUri))
+                .assertNext(routes -> {
+                    assertThat(routes).containsKeys(
+                            "iam-metrics",
+                            "iam-public",
+                            "iam-protected",
+                            "patient-clinical",
+                            "ai-debug-public",
+                            "ai-protected",
+                            "reporting",
+                            "rabbitmq-ui");
+                    assertThat(routes.get("iam-public")).isEqualTo(URI.create("http://iam-service:8000"));
+                    assertThat(routes.get("patient-clinical"))
+                            .isEqualTo(URI.create("http://patient-clinical-service:8000"));
+                    assertThat(routes.get("ai-protected")).isEqualTo(URI.create("http://ai-service:8000"));
+                    assertThat(routes.get("reporting"))
+                            .isEqualTo(URI.create("http://reporting-service:8000"));
+                    assertThat(routes.get("rabbitmq-ui"))
+                            .isEqualTo(URI.create("http://guest:guest@rabbitmq:15672"));
+                })
+                .verifyComplete();
+    }
+
+        @Test
+        void routePredicatesMatchRepresentativeApiPaths() {
+                StepVerifier.create(routeLocator.getRoutes().collectMap(Route::getId))
+                                .assertNext(routes -> {
+                                        assertMatches(routes.get("iam-public"), "/api/v1/auth/login");
+                                        assertMatches(routes.get("iam-protected"), "/api/v1/users/me");
+                                        assertMatches(routes.get("patient-clinical"), "/api/v1/records/123");
+                                        assertMatches(routes.get("ai-debug-public"), "/api/v1/ai/debug");
+                                        assertMatches(routes.get("ai-protected"), "/api/v1/ai/analyze");
+                                        assertMatches(routes.get("reporting"), "/api/v1/audit/events");
+                                        assertMatches(routes.get("rabbitmq-ui"), "/rabbitmq/");
+                                })
+                                .verifyComplete();
+        }
+
+        @Test
+        void exposesConfiguredActuatorEndpoints() {
+                assertThat(webEndpointProperties.getExposure().getInclude())
+                        .contains("health", "info", "prometheus", "gateway");
+                        assertThat(webEndpointsSupplier.getEndpoints())
+                                .extracting(endpoint -> endpoint.getEndpointId().toString())
+                                .contains("health", "info", "prometheus");
+        }
+
+        private void assertMatches(Route route, String path) {
+                ServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get(path));
+                StepVerifier.create(route.getPredicate().apply(exchange))
+                                .expectNext(true)
+                                .verifyComplete();
+        }
+}

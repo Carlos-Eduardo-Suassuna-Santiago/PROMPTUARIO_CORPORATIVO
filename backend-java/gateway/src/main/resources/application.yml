@@ -7,13 +7,42 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: 6379
       database: 0
+  cloud:
+    gateway:
+      globalcors:
+        add-to-simple-url-handler-mapping: true
+        cors-configurations:
+          '[/**]':
+            allowed-origin-patterns: "${FRONTEND_URL:*}"
+            allowed-methods:
+              - GET
+              - POST
+              - PUT
+              - PATCH
+              - DELETE
+              - OPTIONS
+            allowed-headers: "*"
+            allow-credentials: true
 
 management:
+  endpoint:
+    gateway:
+      enabled: true
+    prometheus:
+      enabled: true
   endpoints:
     web:
       base-path: /actuator
       exposure:
-        include: health,info,prometheus,gateway
+        include:
+          - health
+          - info
+          - prometheus
+          - gateway
+  prometheus:
+    metrics:
+      export:
+        enabled: true
 
 app:
   services:
@@ -25,3 +54,7 @@ app:
   security:
     jwt:
       secret: ${JWT_SECRET_KEY:change-me-in-production-super-secret-key-min-32-chars}
+
+logging:
+  level:
+    org.springframework.cloud.gateway: ${GATEWAY_LOG_LEVEL:INFO}
