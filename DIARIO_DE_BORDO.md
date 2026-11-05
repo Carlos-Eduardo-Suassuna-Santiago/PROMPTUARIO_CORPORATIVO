@@ -159,6 +159,9 @@ Dia focado no avanço da camada de persistência e segurança do ecossistema Jav
 
 ### ✅ O que foi Implementado
 
+- Revisão estática das alterações locais no `patient-clinical-service`, incluindo o fluxo de upload de documentos para S3, a configuração do cliente S3 e os modelos/DTOs relacionados.
+- Registro da implementação em andamento do armazenamento de documentos clínicos com validação de tamanho e tipo MIME, sanitização do nome do arquivo, cálculo SHA-256 e persistência dos metadados.
+
 - **Módulo Compartilhado (`shared`)**:
   - Criação da entidade JPA `AuditLog` para rastreamento de operações, com campos para ação, recurso, ID de entidade, autor, IP e timestamp.
   - Criação do repositório Spring Data JPA `AuditLogRepository` com suporte a consultas customizadas e paginação.
@@ -218,6 +221,8 @@ Dia focado no avanço da camada de persistência e segurança do ecossistema Jav
 - O teste inicial do custo BCrypt usava o método inexistente `getStrength()` nesta versão de Spring Security. A verificação foi corrigida para validar o prefixo do hash BCrypt (`$2…$12$`), sem impacto na implementação de produção.
 - Na revisão funcional da Fase 6, foi identificada uma pendência no fluxo de recuperação de senha: `forgotPassword` persiste somente o hash e descarta o token em texto, sem ainda encaminhá-lo a um serviço de e-mail ou notificação. Dessa forma, o token não chega ao usuário para uso em `resetPassword`.
 - A revisão também identificou que `listUsers` não aplica o filtro de papel quando `role` é informado sem `isActive`; essa combinação precisa ser tratada antes da disponibilização do endpoint.
+- Na revisão do upload de documentos do `patient-clinical-service`, foi identificado risco de objeto órfão no S3 se a transação do banco falhar durante o commit, pois a compensação atual só trata exceções lançadas antes do retorno do método.
+- A tentativa de compilação (`mvn -q -DskipTests compile`) não pôde ser concluída porque o comando `mvn` não está disponível no ambiente utilizado; assim, a compilação do módulo permanece sem validação nesta sessão.
 
 ---
 
@@ -233,12 +238,13 @@ Dia focado no avanço da camada de persistência e segurança do ecossistema Jav
 - Testes de segurança concluídos com 7 casos executados, 0 falhas e 0 erros, cobrindo emissão e validação de JWT, rejeição de assinatura alterada, autoridade por papel, revogação no Redis e BCrypt com custo 12.
 - Suíte do IAM ampliada e validada com 13 testes executados, 0 falhas e 0 erros, incluindo PostgreSQL 15 via Testcontainers, serviços de autenticação/usuário e mensageria RabbitMQ simulada.
 - A desativação de usuário atualiza o status, registra data e motivo, revoga tokens ativos em lote e publica o evento de domínio correspondente dentro da mesma unidade transacional de serviço.
+- A busca estática no código Java não encontrou chamadas internas aos métodos antigos removidos de `PatientDocumentService`; a compilação ainda precisa ser verificada em ambiente com Maven e Java 21.
 
 ---
 
 ### 📝 Resumo do Dia
 
-Finalização da camada de persistência e entidades de domínio do `patient-clinical-service` em Java. Foram criadas mais de 20 classes de modelo (incluindo entidades de negócio, enums e tabelas de histórico) e mais de 15 interfaces de repositório Spring Data JPA, cobrindo todo o bounded context de pacientes, consultas, prontuários, agendamentos e prescrições. No IAM Java, foram concluídas as Fases 1, 3, 4, 5 e a implementação inicial da Fase 6, disponibilizando serviços transacionais, emissão e rotação de tokens, revogação, eventos RabbitMQ e cobertura automatizada. A revisão registrou duas pendências a corrigir: encaminhar com segurança o token de recuperação de senha e aplicar o filtro isolado por papel na listagem de usuários.
+Finalização da camada de persistência e entidades de domínio do `patient-clinical-service` em Java. Foram criadas mais de 20 classes de modelo (incluindo entidades de negócio, enums e tabelas de histórico) e mais de 15 interfaces de repositório Spring Data JPA, cobrindo todo o bounded context de pacientes, consultas, prontuários, agendamentos e prescrições. No IAM Java, foram concluídas as Fases 1, 3, 4, 5 e a implementação inicial da Fase 6, disponibilizando serviços transacionais, emissão e rotação de tokens, revogação, eventos RabbitMQ e cobertura automatizada. A revisão registrou pendências no fluxo de recuperação de senha e na filtragem de usuários por papel. Também foi revisado o novo fluxo de upload de documentos clínicos; ficou registrado o risco de arquivo órfão no S3 em falha no commit do banco, e a compilação do módulo não foi confirmada porque Maven não está instalado/disponível no ambiente.
 
 ---
 
