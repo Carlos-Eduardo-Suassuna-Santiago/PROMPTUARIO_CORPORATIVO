@@ -114,28 +114,31 @@ Início da implementação da versão em Java do serviço unificado de pacientes
 ### ✅ O que foi Implementado
 
 - **Migração Inicial Flyway do IAM (`V1__init_iam_schema.sql`)**:
-  - Definição do schema relacional do IAM com suporte a extensões PostgreSQL (`uuid-ossp`).
-  - Criação das tabelas centrais: `users`, `roles`, `user_roles`, `user_sessions` e `audit_logs`.
-  - Configuração de índices para performance de busca por email, username, status e timestamps.
-  - Inclusão de seed do usuário administrador inicial (`admin@promptuario.health`) com permissões administrativas e hash de senha seguro.
+  - Definição do tipo enumerado nativo `user_role` com os papéis `ADMIN`, `DOCTOR`, `ATTENDANT` e `PATIENT`.
+  - Criação das tabelas centrais `users`, `refresh_tokens`, `password_reset_tokens` e `oauth_accounts`, com chaves primárias textuais UUID, relacionamentos e remoção em cascata dos tokens e contas vinculadas ao usuário.
+  - Configuração de constraints de unicidade para email, CPF, hashes de token e combinação de provedor com usuário externo; essas constraints fornecem os índices de consulta correspondentes.
+  - Criação de índices adicionais para papel e status do usuário, usuário de tokens e contas OAuth.
+  - Inclusão do seed idempotente do administrador `admin@promptuario.health`, com senha BCrypt válida para `admin123`, papel `ADMIN` e conta ativa e verificada.
+  - Validação da execução da migração em PostgreSQL 15 efêmero: enum, quatro tabelas, quatorze índices e seed foram criados sem falhas.
 
 ---
 
 ### ❌ O que deu Erro
 
-_Nenhum erro registrado neste dia._
+_Nenhum erro na migração. A validação inicial do hash BCrypt exigiu ajuste de aspas no comando de verificação para impedir a interpretação de caracteres `$` pelo shell; o script Flyway não foi afetado e a checagem final confirmou a senha `admin123`._
 
 ---
 
 ### 🟢 O que Funcionou
 
 - Criação e estruturação da migração SQL seguindo o padrão versionado do Flyway para execução automatizada no boot do serviço.
+- Execução limpa do script em PostgreSQL 15, com confirmação do seed idempotente e das constraints do schema.
 
 ---
 
 ### 📝 Resumo do Dia
 
-Dia focado no avanço da camada de persistência e segurança do ecossistema Java, estruturando o versionamento Flyway inicial para o `iam-service` e garantindo o provisionamento automático do usuário administrador padrão da aplicação.
+Dia focado no avanço da camada de persistência e segurança do ecossistema Java, estruturando o versionamento Flyway inicial para o `iam-service` e garantindo o provisionamento automático do usuário administrador padrão da aplicação. A migração canônica foi validada em PostgreSQL 15 e está preparada para o mapeamento das entidades JPA nas próximas fases.
 
 ---
 
