@@ -1,0 +1,82 @@
+server:
+  port: ${SERVER_PORT:8000}
+
+spring:
+  application:
+    name: iam-service
+  profiles:
+    default: dev
+  datasource:
+    url: jdbc:postgresql://${DB_IAM_HOST:localhost}:5432/iam_db
+    username: ${DB_IAM_USER:iam}
+    password: ${DB_IAM_PASS:iam_pass}
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      database: ${REDIS_DATABASE:0}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:guest}
+    password: ${RABBITMQ_PASS:guest}
+
+app:
+  security:
+    jwt:
+      secret-key: ${JWT_SECRET_KEY:change-me-in-production-super-secret-key-min-32-chars}
+      algorithm: HS256
+      access-token-expiration-minutes: 30
+      refresh-token-expiration-days: 7
+  rabbitmq:
+    exchange: ${IAM_RABBITMQ_EXCHANGE:iam.events}
+
+management:
+  endpoints:
+    web:
+      base-path: /actuator
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+  jpa:
+    properties:
+      hibernate:
+        format_sql: true
+  output:
+    ansi:
+      enabled: always
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  jpa:
+    properties:
+      hibernate:
+        format_sql: false
+
+---
+spring:
+  config:
+    activate:
+      on-profile: test
+  main:
+    banner-mode: "off"
