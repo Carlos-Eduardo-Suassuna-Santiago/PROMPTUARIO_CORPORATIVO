@@ -66,7 +66,7 @@ public class Vaccine {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    protected Vaccine() {
+    public Vaccine() {
     }
 
     @jakarta.persistence.PrePersist
