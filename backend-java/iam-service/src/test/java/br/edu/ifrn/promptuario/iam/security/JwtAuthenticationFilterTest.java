@@ -4,6 +4,7 @@ import br.edu.ifrn.promptuario.iam.config.JwtProperties;
 import br.edu.ifrn.promptuario.iam.model.Role;
 import br.edu.ifrn.promptuario.iam.model.User;
 import br.edu.ifrn.promptuario.iam.service.TokenBlacklistService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockFilterChain;
@@ -28,7 +29,7 @@ class JwtAuthenticationFilterTest {
         String token = provider.generateAccessToken(user());
         TokenBlacklistService blacklistService = mock(TokenBlacklistService.class);
         when(blacklistService.isBlacklisted(token)).thenReturn(false);
-        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(provider, blacklistService);
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(provider, blacklistService, errorResponder());
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("Authorization", "Bearer " + token);
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -48,7 +49,7 @@ class JwtAuthenticationFilterTest {
         String revokedToken = provider.generateAccessToken(user());
         TokenBlacklistService blacklistService = mock(TokenBlacklistService.class);
         when(blacklistService.isBlacklisted(revokedToken)).thenReturn(true);
-        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(provider, blacklistService);
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(provider, blacklistService, errorResponder());
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("Authorization", "Bearer " + revokedToken);
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -56,6 +57,8 @@ class JwtAuthenticationFilterTest {
         filter.doFilter(request, response, new MockFilterChain());
 
         assertThat(response.getStatus()).isEqualTo(401);
+        assertThat(response.getContentType()).isEqualTo("application/json");
+        assertThat(response.getContentAsString()).contains("\"status\":401", "\"path\":\"\"");
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
     }
 
@@ -72,5 +75,9 @@ class JwtAuthenticationFilterTest {
         User user = new User("doctor@promptuario.health", "hash", "Dra. Ana", Role.DOCTOR);
         user.setId("user-123");
         return user;
+    }
+
+    private static SecurityErrorResponder errorResponder() {
+        return new SecurityErrorResponder(new ObjectMapper().findAndRegisterModules());
     }
 }

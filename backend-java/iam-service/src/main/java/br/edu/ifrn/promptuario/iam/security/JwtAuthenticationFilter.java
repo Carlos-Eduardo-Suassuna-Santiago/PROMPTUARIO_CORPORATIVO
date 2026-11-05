@@ -20,10 +20,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final TokenBlacklistService tokenBlacklistService;
+    private final SecurityErrorResponder errorResponder;
 
-    public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider, TokenBlacklistService tokenBlacklistService) {
+    public JwtAuthenticationFilter(
+            JwtTokenProvider jwtTokenProvider,
+            TokenBlacklistService tokenBlacklistService,
+            SecurityErrorResponder errorResponder
+    ) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.tokenBlacklistService = tokenBlacklistService;
+        this.errorResponder = errorResponder;
     }
 
     @Override
@@ -43,7 +49,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (tokenBlacklistService.isBlacklisted(token)
                     || !jwtTokenProvider.validateToken(token)
                     || !jwtTokenProvider.isAccessToken(token)) {
-                response.sendError(HttpStatus.UNAUTHORIZED.value(), "JWT inválido ou revogado");
+                errorResponder.write(request, response, HttpStatus.UNAUTHORIZED, "JWT inválido ou revogado");
                 return;
             }
 
@@ -51,7 +57,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String userId = jwtTokenProvider.extractUserId(token);
                 String role = jwtTokenProvider.extractRole(token);
                 if (role == null || role.isBlank()) {
-                    response.sendError(HttpStatus.UNAUTHORIZED.value(), "JWT sem papel de acesso");
+                    errorResponder.write(request, response, HttpStatus.UNAUTHORIZED, "JWT sem papel de acesso");
                     return;
                 }
 
@@ -64,7 +70,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
         } catch (IllegalArgumentException ex) {
-            response.sendError(HttpStatus.UNAUTHORIZED.value(), "JWT inválido");
+            errorResponder.write(request, response, HttpStatus.UNAUTHORIZED, "JWT inválido");
             return;
         }
 
