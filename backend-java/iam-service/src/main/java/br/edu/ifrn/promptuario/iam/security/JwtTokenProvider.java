@@ -106,6 +106,10 @@ public class JwtTokenProvider {
         return ACCESS_TOKEN_TYPE.equals(extractTokenType(token));
     }
 
+    public boolean isRefreshToken(String token) {
+        return REFRESH_TOKEN_TYPE.equals(extractTokenType(token));
+    }
+
     private String extractTokenType(String token) {
         try {
             return claims(token).getStringClaim("type");
