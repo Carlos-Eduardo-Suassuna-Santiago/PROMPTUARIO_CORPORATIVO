@@ -149,11 +149,11 @@ Dia focado no avanço da camada de persistência e segurança do ecossistema Jav
 ### 📋 Implementação Proposta
 
 - Implementação do modelo de domínio, entidades JPA e repositórios Spring Data JPA para os módulos Shared, Patient e Clinical no serviço unificado (`/backend-java/patient-clinical-service`).
-- Criação e estruturação da camada de DTOs (Data Transfer Objects) e validações com Jakarta Bean Validation (`jakarta.validation.constraints.*`) para os módulos Patient e Clinical na branch `feature/DTO-validacoes-jakarta`.
 - Inicialização da Fase 1 do microsserviço de identidade e acesso em Java (`/backend-java/iam-service`), incluindo dependências Maven, configurações base e infraestrutura de integração.
 - Implementação da Fase 3 do IAM Java: entidades JPA, enum de papéis, repositórios Spring Data e teste de integração com PostgreSQL 15.
 - Implementação da Fase 4 do IAM Java: DTOs imutáveis com Java Records, validações Jakarta e compatibilidade dos contratos JSON com o frontend.
 - Implementação da Fase 5 do IAM Java: JWT HS256, BCrypt, blacklist de tokens no Redis e configuração stateless do Spring Security.
+- Implementação da Fase 6 do IAM Java: serviços transacionais de autenticação e usuários, revogação de tokens e publicação de eventos de domínio no RabbitMQ.
 
 ---
 
@@ -167,22 +167,12 @@ Dia focado no avanço da camada de persistência e segurança do ecossistema Jav
   - Implementação de enums de domínio: `GenderType`, `AllergySeverity`, `DocumentType` e `MedicationChangeType`.
   - Mapeamentos relacionais `@OneToMany`, `@ManyToOne`, índices de banco de dados, constraints de unicidade (ex: CPF e cartão SUS) e chaves UUID.
   - Criação dos repositórios Spring Data JPA: `PatientRepository`, `AllergyRepository`, `ContinuousMedicationRepository`, `MedicationHistoryRepository`, `PatientDocumentRepository` e `VaccineRepository`.
-  - **Camada de DTOs e Validações Jakarta (`modules/patient/dto`)**:
-    - Criação de 18 DTOs com Java Records para entrada e saída de dados: `PatientCreateDto`, `PatientUpdateDto`, `PatientResponseDto`, `PatientListResponseDto`, `PatientSummaryResponseDto`, `AllergyCreateDto`, `AllergyDto`, `AllergyResponseDto`, `MedicationCreateDto`, `MedicationUpdateDto`, `MedicationDto`, `MedicationResponseDto`, `DocumentDto`, `DocumentResponseDto`, `DocumentUploadResponseDto`, `VaccineCreateDto`, `VaccineDto` e `VaccineResponseDto`.
-    - Validações estritas com Jakarta Validation: `@NotBlank`, `@Size`, `@Email`, `@Pattern` para validação de formato de CPF (`^\d{3}\.\d{3}\.\d{3}-\d{2}$|^\d{11}$`), etc.
-    - Métodos declarativos de conversão bidirecional entre DTOs e entidades (`toEntity()`).
 - **Módulo Clínico (`modules/clinical`)**:
   - Implementação das entidades JPA centrais: `Appointment`, `DoctorSchedule`, `TimeSlot`, `MedicalRecord`, `Prescription`, `ExamRequest` e `MedicalCertificate`.
   - Implementação de entidades de auditoria/histórico para rastreabilidade de alterações clínicas: `MedicalRecordHistory`, `PrescriptionHistory`, `ExamRequestHistory` e `MedicalCertificateHistory`.
   - Implementação dos enums: `AppointmentStatus`, `AppointmentType` e `ExamUrgency`.
   - Mapeamento de relacionamentos entre agendamentos, horários de médicos e prontuários com chaves estrangeiras e integridade referencial.
   - Criação dos repositórios Spring Data JPA: `AppointmentRepository`, `DoctorScheduleRepository`, `TimeSlotRepository`, `MedicalRecordRepository`, `MedicalRecordHistoryRepository`, `PrescriptionRepository`, `PrescriptionHistoryRepository`, `ExamRequestRepository`, `ExamRequestHistoryRepository`, `MedicalCertificateRepository` e `MedicalCertificateHistoryRepository`.
-  - **Camada de DTOs e Validações Jakarta (`modules/clinical/dto`)**:
-    - Criação de 18 DTOs com Java Records para fluxo de consultas, prontuários, prescrições e exames: `AppointmentCreateDto`, `AppointmentCancelDto`, `AppointmentResponseDto`, `AppointmentListResponseDto`, `MedicalRecordCreateDto`, `MedicalRecordUpdateDto`, `MedicalRecordResponseDto`, `MedicalRecordHistoryResponseDto`, `PrescriptionCreateDto`, `PrescriptionResponseDto`, `MedicationItemDto`, `ExamRequestCreateDto`, `ExamRequestResponseDto`, `ExamResultUpdateDto`, `MedicalCertificateCreateDto`, `MedicalCertificateResponseDto`, `ScheduleCreateDto` e `TimeSlotDto`.
-    - Validações de integridade com Jakarta Validation: campos obrigatórios (`@NotBlank`, `@NotNull`), limites de caracteres (`@Size`) e regras de agendamento.
-    - Métodos `toEntity()` integrados para instanciação segura do modelo de domínio.
-- **Refatoração dos Construtores das Entidades**:
-  - Ajuste de visibilidade dos construtores padrão de `protected` para `public` nas 11 entidades de domínio (`Appointment`, `DoctorSchedule`, `ExamRequest`, `MedicalCertificate`, `MedicalRecord`, `Prescription`, `TimeSlot`, `Allergy`, `ContinuousMedication`, `Patient`, `Vaccine`), viabilizando a conversão via métodos `toEntity()` dos DTOs.
 - **Bootstrap do IAM Service Java — Fase 1 (`backend-java/iam-service`)**:
   - Criação do `pom.xml` com Java 21 e Spring Boot 3.3.4, incluindo Spring Web, JPA, Security, Validation, Redis, AMQP, Actuator, Flyway, PostgreSQL, Prometheus, OpenAPI, Nimbus JOSE JWT, Google Authenticator, Lombok e dependências de teste com Testcontainers.
   - Criação do `application.yml` com porta interna `8000`, perfis `dev`, `prod` e `test`, datasource PostgreSQL para `iam_db`, Flyway, Redis, RabbitMQ e exposição de `health`, `info` e `prometheus` em `/actuator`.
@@ -210,6 +200,13 @@ Dia focado no avanço da camada de persistência e segurança do ecossistema Jav
   - Criação da `SecurityConfig` stateless, com CSRF desabilitado, BCrypt de custo 12, rotas públicas definidas e filtro JWT posicionado antes de `UsernamePasswordAuthenticationFilter`.
   - Prevenção de execução duplicada do filtro JWT por meio do desativamento de seu registro automático como filtro de servlet.
   - Inclusão de testes para tokens, blacklist Redis, filtro de autenticação e BCrypt.
+- **Serviços de Negócio e Eventos do IAM — Fase 6 (`backend-java/iam-service`)**:
+  - Implementação de `AuthService` com autenticação por senha, validação de TOTP quando o 2FA está habilitado, emissão de JWTs, persistência do hash SHA-256 de refresh tokens, rotação de refresh token, logout com blacklist Redis, alteração de senha e redefinição de senha com validade de duas horas.
+  - Implementação de `UserService` para criação de usuários e pacientes, validação de unicidade de e-mail/CPF, listagem paginada, consulta individual, listagem de médicos e desativação de conta com revogação em lote dos refresh tokens.
+  - Criação dos eventos imutáveis `UserCreatedEvent` e `UserDeactivatedEvent` e do `IamEventPublisher`, que publica mensagens JSON na exchange configurável `iam.events`, nas routing keys `user.created` e `user.deactivated`.
+  - Inclusão de headers de rastreabilidade `eventId`, `eventType`, `occurredAt` e `correlationId` nas mensagens RabbitMQ.
+  - Ampliação de `UserRepository` para paginação por status e de `JwtTokenProvider` para identificar refresh tokens.
+  - Inclusão de testes unitários para rotação de refresh token, desativação e revogação em lote, além dos headers dos eventos RabbitMQ.
 
 ---
 
@@ -219,6 +216,8 @@ Dia focado no avanço da camada de persistência e segurança do ecossistema Jav
 - O Maven fornecido pela IDE foi iniciado com Java 17, o que causou o erro `release version 21 not supported`. A compilação foi reexecutada com `JAVA_HOME` apontando para o Corretto Java 21 e finalizada com sucesso.
 - A primeira execução do teste de integração usou Testcontainers 1.20.2, cujo cliente Docker API 1.32 foi recusado pelo daemon local, que exige API 1.40 ou superior. A versão foi atualizada para 1.21.4, compatível com engines Docker recentes, e a suíte passou sem erros.
 - O teste inicial do custo BCrypt usava o método inexistente `getStrength()` nesta versão de Spring Security. A verificação foi corrigida para validar o prefixo do hash BCrypt (`$2…$12$`), sem impacto na implementação de produção.
+- Na revisão funcional da Fase 6, foi identificada uma pendência no fluxo de recuperação de senha: `forgotPassword` persiste somente o hash e descarta o token em texto, sem ainda encaminhá-lo a um serviço de e-mail ou notificação. Dessa forma, o token não chega ao usuário para uso em `resetPassword`.
+- A revisão também identificou que `listUsers` não aplica o filtro de papel quando `role` é informado sem `isActive`; essa combinação precisa ser tratada antes da disponibilização do endpoint.
 
 ---
 
@@ -227,19 +226,19 @@ Dia focado no avanço da camada de persistência e segurança do ecossistema Jav
 - Modelagem completa e rica do modelo relacional em JPA/Hibernate cobrindo todas as regras de domínio legadas de pacientes e prontuários.
 - Definição de histórico e auditoria imutável para prontuários, receitas, pedidos de exames e atestados médicos.
 - Repositórios Spring Data JPA prontos com consultas especializadas para atender a camada de serviço e API REST.
-- Criação de 36 DTOs imutáveis utilizando records do Java 21, garantindo validação de entrada declarativa com Jakarta Validation e desacoplamento das entidades de persistência.
-- Conversão limpa entre DTOs e entidades mantendo integridade dos dados e regras de negócio.
 - Resolução das dependências e compilação limpa do `iam-service` com `mvn clean compile`, Java 21 e Spring Boot 3.3.4.
 - Carregamento das configurações de PostgreSQL, Redis, RabbitMQ e JWT a partir de variáveis de ambiente com valores padrão seguros para desenvolvimento local.
 - Teste de integração da persistência concluído com 1 teste executado, 0 falhas e 0 erros; Flyway, enum nativo PostgreSQL, Hibernate e os quatro repositórios foram validados em conjunto.
 - Testes dos contratos dos DTOs concluídos com 2 casos executados, 0 falhas e 0 erros, confirmando as validações e a paridade dos nomes JSON dos tokens.
 - Testes de segurança concluídos com 7 casos executados, 0 falhas e 0 erros, cobrindo emissão e validação de JWT, rejeição de assinatura alterada, autoridade por papel, revogação no Redis e BCrypt com custo 12.
+- Suíte do IAM ampliada e validada com 13 testes executados, 0 falhas e 0 erros, incluindo PostgreSQL 15 via Testcontainers, serviços de autenticação/usuário e mensageria RabbitMQ simulada.
+- A desativação de usuário atualiza o status, registra data e motivo, revoga tokens ativos em lote e publica o evento de domínio correspondente dentro da mesma unidade transacional de serviço.
 
 ---
 
 ### 📝 Resumo do Dia
 
-Finalização da camada de persistência, dos DTOs e da segurança do `patient-clinical-service` e do `iam-service` Java. Foram concluídas as Fases 1, 3, 4 e 5 do IAM, incluindo persistência JPA, DTOs validados, autenticação JWT stateless, revogação no Redis e testes de integração. O serviço de pacientes passou a cobrir o bounded context de pacientes, consultas, prontuários, agendamentos e prescrições, preparando os módulos para as próximas etapas de serviços e endpoints REST.
+Finalização da camada de persistência e entidades de domínio do `patient-clinical-service` em Java. Foram criadas mais de 20 classes de modelo (incluindo entidades de negócio, enums e tabelas de histórico) e mais de 15 interfaces de repositório Spring Data JPA, cobrindo todo o bounded context de pacientes, consultas, prontuários, agendamentos e prescrições. No IAM Java, foram concluídas as Fases 1, 3, 4, 5 e a implementação inicial da Fase 6, disponibilizando serviços transacionais, emissão e rotação de tokens, revogação, eventos RabbitMQ e cobertura automatizada. A revisão registrou duas pendências a corrigir: encaminhar com segurança o token de recuperação de senha e aplicar o filtro isolado por papel na listagem de usuários.
 
 ---
 
@@ -278,33 +277,3 @@ Breve parágrafo com o balanço geral do dia, decisões tomadas e próximos pass
 
 ---
 -->
----
-
-## 2026-11-05 — Fase 5: Serviços de Domínio e Transacionalidade de Pacientes
-
-### Implementação Proposta
-
-- Implementar os serviços de domínio do módulo Patient com transações ACID, regras de negócio, auditoria, eventos de domínio e anonimização conforme a LGPD.
-
-### O que foi Implementado
-
-- Criados `PatientService`, `AllergyService`, `VaccineService`, `MedicationService` e `PatientDocumentService`.
-- Implementados gerenciamento de pacientes, alergias, vacinas, doses subsequentes, medicações contínuas e exclusão lógica de documentos.
-- Registrado `MedicationHistory` imutável com snapshot JSON do estado anterior.
-- Criado `AuditService` com `Propagation.MANDATORY` e adicionados eventos de paciente e alergia.
-- Adicionadas as exceções `ResourceNotFoundException`, `ConflictException` e `BusinessException`.
-- Alterações registradas nos commits `70c1a4e` e `7ccbc61` da branch `feature/modulo-patient`.
-
-### O que deu Erro
-
-- O Maven não estava no PATH e o Java padrão era a versão 8; foram utilizados o JDK 21 do Eclipse Adoptium e o Maven 3.9.16 já disponíveis localmente.
-
-### O que Funcionou
-
-- Compilação do `patient-clinical-service` concluída com sucesso usando JDK 21 e Maven 3.9.16 com `-DskipTests compile`.
-- Todas as operações de escrita foram configuradas com `@Transactional(rollbackFor = Exception.class)`.
-
-### Resumo do Dia
-
-Fase 5 concluída com serviços de domínio, transacionalidade, auditoria mandatória, eventos, histórico de medicações, anonimização LGPD e exclusão lógica de documentos.
-

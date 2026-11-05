@@ -21,6 +21,8 @@ public interface UserRepository extends JpaRepository<User, String> {
 
     Page<User> findByRoleAndIsActive(Role role, Boolean isActive, Pageable pageable);
 
+    Page<User> findByIsActive(Boolean isActive, Pageable pageable);
+
     List<User> findByRoleAndIsActiveTrue(Role role);
 
     @Override
