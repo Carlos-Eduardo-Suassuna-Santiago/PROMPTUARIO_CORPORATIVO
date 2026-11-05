@@ -120,24 +120,20 @@ services:
   # Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ MICROSERVICES Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   iam-service:
     build:
-      context: .
-      dockerfile: iam-service/Dockerfile
+      context: ../backend-java/iam-service
+      dockerfile: Dockerfile
+    container_name: iam-service
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql+asyncpg://iam:${DB_IAM_PASSWORD:-iam_pass}@db-iam:5432/iam_db
-      REDIS_URL: redis://redis:6379/0
-      RABBITMQ_URL: amqp://promptuario:${RABBITMQ_PASSWORD:-promptuario_pass}@rabbitmq:5672/
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-super-secret-change-in-production-32chars}
-      JWT_ALGORITHM: HS256
-      ACCESS_TOKEN_EXPIRE_MINUTES: 30
-      REFRESH_TOKEN_EXPIRE_DAYS: 7
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
-      OAUTH_REDIRECT_BASE_URL: ${OAUTH_REDIRECT_BASE_URL:-http://localhost:8000}
-      FRONTEND_CALLBACK_URL: ${FRONTEND_CALLBACK_URL:-http://localhost:3000/auth/callback}
-      SERVICE_NAME: iam-service
-      LOG_LEVEL: INFO
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db-iam:5432/iam_db
+      SPRING_DATASOURCE_USERNAME: iam
+      SPRING_DATASOURCE_PASSWORD: ${DB_IAM_PASSWORD:-iam_pass}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_USERNAME: promptuario
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-promptuario_pass}
+      APP_SECURITY_JWT_SECRET_KEY: ${JWT_SECRET_KEY:-super-secret-change-in-production-32chars}
     depends_on:
       db-iam:
         condition: service_healthy
