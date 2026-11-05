@@ -6,6 +6,9 @@ import br.edu.ifrn.promptuario.iam.dto.PatientRegisterDTO;
 import br.edu.ifrn.promptuario.iam.dto.UserCreateDTO;
 import br.edu.ifrn.promptuario.iam.dto.UserListResponseDTO;
 import br.edu.ifrn.promptuario.iam.dto.UserResponseDTO;
+import br.edu.ifrn.promptuario.iam.dto.UserUpdateDTO;
+import br.edu.ifrn.promptuario.iam.exception.ConflictException;
+import br.edu.ifrn.promptuario.iam.exception.ResourceNotFoundException;
 import br.edu.ifrn.promptuario.iam.messaging.IamEventPublisher;
 import br.edu.ifrn.promptuario.iam.messaging.events.UserCreatedEvent;
 import br.edu.ifrn.promptuario.iam.messaging.events.UserDeactivatedEvent;
@@ -58,7 +61,7 @@ public class UserService {
     @Transactional
     public void deactivateUser(String userId, String reason, String adminId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado"));
+                .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
         if (!user.isActive()) {
             return;
         }
@@ -80,6 +83,8 @@ public class UserService {
             users = userRepository.findByRoleAndIsActive(role, isActive, pageable);
         } else if (isActive != null) {
             users = userRepository.findByIsActive(isActive, pageable);
+        } else if (role != null) {
+            users = userRepository.findByRole(role, pageable);
         } else {
             users = userRepository.findAll(pageable);
         }
@@ -96,7 +101,45 @@ public class UserService {
     public UserResponseDTO getUserById(String id) {
         return userRepository.findById(id)
                 .map(UserResponseDTO::fromEntity)
-                .orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado"));
+                .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
+    }
+
+    @Transactional
+    public UserResponseDTO updateUser(String id, UserUpdateDTO dto) {
+        User user = getUser(id);
+        if (dto.email() != null && !dto.email().isBlank()) {
+            String email = dto.email().trim().toLowerCase(java.util.Locale.ROOT);
+            userRepository.findByEmailIgnoreCase(email).filter(found -> !found.getId().equals(id))
+                    .ifPresent(found -> { throw new ConflictException("E-mail ou CPF já cadastrado"); });
+            user.setEmail(email);
+        }
+        if (dto.cpf() != null) {
+            String cpf = normalizeCpf(dto.cpf());
+            if (cpf != null) {
+                userRepository.findByCpf(cpf).filter(found -> !found.getId().equals(id))
+                        .ifPresent(found -> { throw new ConflictException("E-mail ou CPF já cadastrado"); });
+            }
+            user.setCpf(cpf);
+        }
+        if (dto.fullName() != null && !dto.fullName().isBlank()) {
+            user.setFullName(dto.fullName().trim());
+        }
+        return UserResponseDTO.fromEntity(user);
+    }
+
+    @Transactional
+    public UserResponseDTO assignRole(String id, Role role) {
+        User user = getUser(id);
+        user.setRole(role);
+        return UserResponseDTO.fromEntity(user);
+    }
+
+    @Transactional
+    public void reactivateUser(String id) {
+        User user = getUser(id);
+        user.setActive(true);
+        user.setDeactivatedAt(null);
+        user.setDeactivationReason(null);
     }
 
     @Transactional(readOnly = true)
@@ -122,12 +165,17 @@ public class UserService {
         return user;
     }
 
+    private User getUser(String id) {
+        return userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
+    }
+
     private void validateUniqueIdentity(String email, String cpf) {
         if (userRepository.existsByEmailIgnoreCase(email)) {
-            throw new IllegalArgumentException("E-mail já está em uso");
+            throw new ConflictException("E-mail ou CPF já cadastrado");
         }
         if (cpf != null && userRepository.existsByCpf(cpf)) {
-            throw new IllegalArgumentException("CPF já está em uso");
+            throw new ConflictException("E-mail ou CPF já cadastrado");
         }
     }
 
