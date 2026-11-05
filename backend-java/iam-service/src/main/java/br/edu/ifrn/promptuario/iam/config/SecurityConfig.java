@@ -58,7 +58,8 @@ public class SecurityConfig {
                                 "/api/v1/auth/forgot-password",
                                 "/api/v1/auth/reset-password",
                                 "/api/v1/auth/register-patient",
-                                "/api/v1/auth/oauth/**"
+                                "/api/v1/auth/oauth/google",
+                                "/api/v1/auth/oauth/google/callback"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )

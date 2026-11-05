@@ -30,6 +30,7 @@ spring:
     password: ${RABBITMQ_PASS:guest}
 
 app:
+  frontend-callback-url: ${FRONTEND_CALLBACK_URL:http://localhost:3000/auth/oauth/callback}
   security:
     jwt:
       secret-key: ${JWT_SECRET_KEY:change-me-in-production-super-secret-key-min-32-chars}
@@ -38,6 +39,11 @@ app:
       refresh-token-expiration-days: 7
   rabbitmq:
     exchange: ${IAM_RABBITMQ_EXCHANGE:iam.events}
+  oauth2:
+    google:
+      client-id: ${GOOGLE_OAUTH_CLIENT_ID:not-configured}
+      client-secret: ${GOOGLE_OAUTH_CLIENT_SECRET:not-configured}
+      redirect-uri: ${GOOGLE_OAUTH_REDIRECT_URI:http://localhost:8000/api/v1/auth/oauth/google/callback}
 
 management:
   endpoints:
