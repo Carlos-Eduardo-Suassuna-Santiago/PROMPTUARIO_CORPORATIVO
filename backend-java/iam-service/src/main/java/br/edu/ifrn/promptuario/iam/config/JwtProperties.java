@@ -2,6 +2,7 @@ package br.edu.ifrn.promptuario.iam.config;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
@@ -10,6 +11,7 @@ import org.springframework.validation.annotation.Validated;
 public class JwtProperties {
 
     @NotBlank
+    @Size(min = 32, message = "A chave JWT deve ter no mínimo 32 caracteres")
     private String secretKey;
 
     @NotBlank
