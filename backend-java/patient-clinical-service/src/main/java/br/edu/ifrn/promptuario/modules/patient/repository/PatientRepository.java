@@ -14,4 +14,6 @@ public interface PatientRepository extends JpaRepository<Patient, String> {
     Optional<Patient> findByCpf(String cpf);
 
     Page<Patient> findByFullNameContainingIgnoreCase(String fullName, Pageable pageable);
+
+    Page<Patient> findByFullNameContainingIgnoreCaseOrCpfContaining(String fullName, String cpf, Pageable pageable);
 }

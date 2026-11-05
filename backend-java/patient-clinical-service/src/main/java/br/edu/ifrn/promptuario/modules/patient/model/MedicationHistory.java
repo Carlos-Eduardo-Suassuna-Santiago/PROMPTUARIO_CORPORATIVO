@@ -102,7 +102,7 @@ public class MedicationHistory {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    protected MedicationHistory() {
+    public MedicationHistory() {
     }
 
     @jakarta.persistence.PrePersist
