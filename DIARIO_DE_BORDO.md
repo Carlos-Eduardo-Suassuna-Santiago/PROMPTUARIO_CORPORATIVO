@@ -156,6 +156,7 @@ Dia focado no avanço da camada de persistência e segurança do ecossistema Jav
 - Implementação da Fase 6 do IAM Java: serviços transacionais de autenticação e usuários, revogação de tokens e publicação de eventos de domínio no RabbitMQ.
 - Implementação da Fase 7 do IAM Java: autenticação social Google OAuth2/OpenID Connect e autenticação em dois fatores via TOTP.
 - Implementação da Fase 8 do IAM Java: controladores REST canônicos, regras de autorização e respostas globais de erro.
+- Implementação da Fase 9 do IAM Java: containerização multi-stage, integração no Docker Compose e testes ponta a ponta com Testcontainers.
 
 ---
 
@@ -224,6 +225,11 @@ Dia focado no avanço da camada de persistência e segurança do ecossistema Jav
   - Implementação de `ApiErrorResponse` e `GlobalExceptionHandler` para respostas consistentes de validação, credenciais, acesso, recurso inexistente, conflito e falha interna.
   - Inclusão das exceções de domínio `BadCredentialsException`, `ResourceNotFoundException` e `ConflictException`; as consultas e operações de usuário passaram a utilizá-las.
   - Correção do filtro isolado por papel na listagem de usuários, anteriormente pendente na Fase 6.
+- **Containerização e Testes de Integração — Fase 9 (`backend-java/iam-service`)**:
+  - Criação do Dockerfile multi-stage com Maven e Eclipse Temurin 21 Alpine, execução como usuário não-root, healthcheck em `/healthz` e limites de memória JVM apropriados para containers.
+  - Atualização do serviço `iam-service` no Docker Compose para construir o módulo Java, expor `8001:8000` e receber configurações Spring de PostgreSQL, Redis, RabbitMQ e JWT.
+  - Criação de `AuthIntegrationTest` com PostgreSQL 15 e Redis 7 reais via Testcontainers e chamadas HTTP com MockMvc; a mensageria foi isolada para manter banco e cache integralmente reais.
+  - Cobertura dos fluxos de login do administrador, cadastro de paciente, blacklist Redis no logout, rejeição de token revogado e bloqueio de login após desativação.
 
 ---
 
@@ -237,6 +243,7 @@ Dia focado no avanço da camada de persistência e segurança do ecossistema Jav
 - A revisão também identificou que `listUsers` não aplica o filtro de papel quando `role` é informado sem `isActive`; essa combinação precisa ser tratada antes da disponibilização do endpoint.
 - Nenhum erro de compilação ou de teste foi encontrado durante a implementação da Fase 7. A autenticação real com Google não foi executada localmente, pois requer credenciais OAuth2 e URIs de redirecionamento cadastradas no console do provedor.
 - Nenhum erro de compilação ou teste foi encontrado na Fase 8; os avisos do agente Mockito, Testcontainers e dialeto PostgreSQL não interromperam a execução.
+- A construção da imagem Docker foi iniciada e o Dockerfile não apresentou erro de sintaxe, mas o download inicial das dependências Maven excedeu a janela de execução disponível antes da conclusão. A validação completa da imagem e de seu tamanho permanece pendente.
 
 ---
 
@@ -254,12 +261,13 @@ Dia focado no avanço da camada de persistência e segurança do ecossistema Jav
 - A desativação de usuário atualiza o status, registra data e motivo, revoga tokens ativos em lote e publica o evento de domínio correspondente dentro da mesma unidade transacional de serviço.
 - A suíte do IAM passou a ter 14 testes, todos concluídos com sucesso, cobrindo também o fluxo local de TOTP.
 - A suíte completa do IAM continuou aprovada após os controladores e o tratamento de exceções, com 14 testes executados, 0 falhas e 0 erros.
+- Os cinco testes de integração da Fase 9 passaram sem falhas, exercitando PostgreSQL e Redis em containers descartáveis; a configuração do Docker Compose foi validada com `docker compose config --quiet`.
 
 ---
 
 ### 📝 Resumo do Dia
 
-Finalização da camada de persistência e entidades de domínio do `patient-clinical-service` em Java. Foram criadas mais de 20 classes de modelo (incluindo entidades de negócio, enums e tabelas de histórico) e mais de 15 interfaces de repositório Spring Data JPA, cobrindo todo o bounded context de pacientes, consultas, prontuários, agendamentos e prescrições. No IAM Java, foram concluídas as Fases 1, 3, 4, 5, 6, 7 e 8, incorporando serviços transacionais, eventos RabbitMQ, autenticação social Google OAuth2, TOTP, endpoints REST e erros HTTP padronizados. Permanece a pendência da Fase 6 de encaminhar com segurança o token de recuperação de senha; o filtro isolado por papel na listagem foi corrigido nesta fase.
+Finalização da camada de persistência e entidades de domínio do `patient-clinical-service` em Java. Foram criadas mais de 20 classes de modelo (incluindo entidades de negócio, enums e tabelas de histórico) e mais de 15 interfaces de repositório Spring Data JPA, cobrindo todo o bounded context de pacientes, consultas, prontuários, agendamentos e prescrições. No IAM Java, foram concluídas as Fases 1, 3, 4, 5, 6, 7, 8 e 9, incorporando serviços transacionais, eventos RabbitMQ, OAuth2, TOTP, endpoints REST, erros HTTP padronizados, Docker e testes ponta a ponta. Permanece a pendência da Fase 6 de encaminhar com segurança o token de recuperação de senha. A construção integral da imagem Docker deve ser repetida em ambiente com tempo suficiente para o download inicial das dependências Maven.
 
 ---
 
