@@ -7,6 +7,8 @@ import br.edu.ifrn.promptuario.iam.dto.ResetPasswordDTO;
 import br.edu.ifrn.promptuario.iam.dto.TokenResponseDTO;
 import br.edu.ifrn.promptuario.iam.dto.UserResponseDTO;
 import br.edu.ifrn.promptuario.iam.exception.ForbiddenException;
+import br.edu.ifrn.promptuario.iam.exception.BadCredentialsException;
+import br.edu.ifrn.promptuario.iam.exception.ResourceNotFoundException;
 import br.edu.ifrn.promptuario.iam.model.PasswordResetToken;
 import br.edu.ifrn.promptuario.iam.model.RefreshToken;
 import br.edu.ifrn.promptuario.iam.model.User;
@@ -62,10 +64,10 @@ public class AuthService {
     @Transactional
     public TokenResponseDTO login(LoginRequestDTO dto) {
         User user = userRepository.findByEmailIgnoreCase(dto.email().trim())
-                .orElseThrow(() -> new IllegalArgumentException(INVALID_CREDENTIALS));
+                .orElseThrow(() -> new BadCredentialsException(INVALID_CREDENTIALS));
 
         if (!passwordEncoder.matches(dto.password(), user.getHashedPassword())) {
-            throw new IllegalArgumentException(INVALID_CREDENTIALS);
+            throw new BadCredentialsException(INVALID_CREDENTIALS);
         }
         ensureUserIsActive(user);
         validateTwoFactorCode(user, dto.totpCode());
@@ -76,13 +78,13 @@ public class AuthService {
     public TokenResponseDTO refresh(RefreshRequestDTO dto) {
         String rawRefreshToken = dto.refreshToken();
         if (!jwtTokenProvider.validateToken(rawRefreshToken) || !jwtTokenProvider.isRefreshToken(rawRefreshToken)) {
-            throw new IllegalArgumentException("Refresh token inválido ou expirado");
+            throw new BadCredentialsException("Refresh token inválido ou expirado");
         }
 
         RefreshToken currentToken = refreshTokenRepository
                 .findByTokenHashAndRevokedFalse(hashToken(rawRefreshToken))
                 .filter(token -> token.getExpiresAt().isAfter(Instant.now()))
-                .orElseThrow(() -> new IllegalArgumentException("Refresh token inválido ou expirado"));
+                .orElseThrow(() -> new BadCredentialsException("Refresh token inválido ou expirado"));
 
         currentToken.setRevoked(true);
         User user = currentToken.getUser();
@@ -161,7 +163,7 @@ public class AuthService {
 
     private User getUser(String userId) {
         return userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado"));
+                .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
     }
 
     private void ensureUserIsActive(User user) {
