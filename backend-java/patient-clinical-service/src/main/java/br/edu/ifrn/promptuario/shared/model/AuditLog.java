@@ -93,6 +93,19 @@ public class AuditLog {
     protected AuditLog() {
     }
 
+    public static AuditLog create(String serviceName, String tableName, String operation, String recordId,
+                                  String userId, Map<String, Object> oldValues, Map<String, Object> newValues) {
+        AuditLog log = new AuditLog();
+        log.serviceName = serviceName;
+        log.tableName = tableName;
+        log.operation = operation;
+        log.recordId = recordId;
+        log.userId = userId;
+        log.oldValues = oldValues;
+        log.newValues = newValues;
+        return log;
+    }
+
     @jakarta.persistence.PrePersist
     private void assignId() {
         if (id == null) id = UUID.randomUUID().toString();

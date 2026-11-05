@@ -46,7 +46,7 @@ public class DoctorSchedule {
     @OneToMany(mappedBy = "schedule", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<TimeSlot> slots = new ArrayList<>();
 
-    protected DoctorSchedule() {
+    public DoctorSchedule() {
     }
 
     @jakarta.persistence.PrePersist

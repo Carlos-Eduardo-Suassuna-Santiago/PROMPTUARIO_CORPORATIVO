@@ -1,0 +1,27 @@
+server:
+  port: 8000
+
+spring:
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: 6379
+      database: 0
+
+management:
+  endpoints:
+    web:
+      base-path: /actuator
+      exposure:
+        include: health,info,prometheus,gateway
+
+app:
+  services:
+    iam: ${IAM_SERVICE_URL:http://iam-service:8000}
+    patient-clinical: ${PATIENT_CLINICAL_SERVICE_URL:http://patient-clinical-service:8000}
+    ai: ${AI_SERVICE_URL:http://ai-service:8000}
+    reporting: ${REPORTING_SERVICE_URL:http://reporting-service:8000}
+    rabbitmq-management: ${RABBITMQ_MANAGEMENT_URL:http://guest:guest@rabbitmq:15672}
+  security:
+    jwt:
+      secret: ${JWT_SECRET_KEY:change-me-in-production-super-secret-key-min-32-chars}

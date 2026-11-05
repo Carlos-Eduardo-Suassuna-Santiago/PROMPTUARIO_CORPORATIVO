@@ -58,7 +58,7 @@ public class Allergy {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    protected Allergy() {
+    public Allergy() {
     }
 
     @jakarta.persistence.PrePersist

@@ -93,7 +93,7 @@ public class Appointment {
     @OneToOne(mappedBy = "appointment", fetch = FetchType.LAZY)
     private MedicalRecord medicalRecord;
 
-    protected Appointment() {
+    public Appointment() {
     }
 
     @jakarta.persistence.PrePersist
