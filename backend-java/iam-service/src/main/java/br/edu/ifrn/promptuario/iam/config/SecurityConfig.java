@@ -2,6 +2,7 @@ package br.edu.ifrn.promptuario.iam.config;
 
 import br.edu.ifrn.promptuario.iam.security.JwtAuthenticationFilter;
 import br.edu.ifrn.promptuario.iam.security.JwtTokenProvider;
+import br.edu.ifrn.promptuario.iam.security.SecurityErrorResponder;
 import br.edu.ifrn.promptuario.iam.service.TokenBlacklistService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,6 +16,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.http.HttpStatus;
 
 @Configuration
 @EnableWebSecurity
@@ -29,9 +31,10 @@ public class SecurityConfig {
     @Bean
     public JwtAuthenticationFilter jwtAuthenticationFilter(
             JwtTokenProvider jwtTokenProvider,
-            TokenBlacklistService tokenBlacklistService
+            TokenBlacklistService tokenBlacklistService,
+            SecurityErrorResponder errorResponder
     ) {
-        return new JwtAuthenticationFilter(jwtTokenProvider, tokenBlacklistService);
+        return new JwtAuthenticationFilter(jwtTokenProvider, tokenBlacklistService, errorResponder);
     }
 
     @Bean
@@ -44,11 +47,20 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtAuthenticationFilter)
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            JwtAuthenticationFilter jwtAuthenticationFilter,
+            SecurityErrorResponder errorResponder
+    )
             throws Exception {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint((request, response, exception) ->
+                                errorResponder.write(request, response, HttpStatus.UNAUTHORIZED, "Autenticação necessária"))
+                        .accessDeniedHandler((request, response, exception) ->
+                                errorResponder.write(request, response, HttpStatus.FORBIDDEN, "Acesso negado")))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(
                                 "/healthz",

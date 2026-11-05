@@ -2,98 +2,86 @@ name: Backend CI
 
 on:
   push:
-    paths:
-      - 'backend/**'
+    paths: ['backend/**', 'backend-java/**', '.github/workflows/backend-ci.yml']
   pull_request:
-    paths:
-      - 'backend/**'
+    paths: ['backend/**', 'backend-java/**', '.github/workflows/backend-ci.yml']
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
   PYTHON_VERSION: '3.12'
+  JAVA_VERSION: '21'
 
 jobs:
-  lint:
+  lint-python:
     name: Lint — ${{ matrix.service }}
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        service:
-          - iam-service
-          - patient-service
-          - clinical-service
-          - ai-service
-          - reporting-service
-          - gateway
+        include:
+          - { service: ai-service, directory: backend/ai-service }
+          - { service: reporting-service, directory: backend/reporting-service }
+          - { service: gateway, directory: backend/gateway }
+          - { service: patient-clinical-service, directory: backend/patient-clinical-service }
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
-          cache-dependency-path: backend/${{ matrix.service }}/requirements.txt
+          cache-dependency-path: ${{ matrix.directory }}/requirements.txt
+      - run: pip install -r ${{ matrix.directory }}/requirements.txt && pip install ruff==0.6.8
+      - run: ruff check ${{ matrix.directory }}/app/ --ignore E501,F401,F811,E402 --target-version py312
 
-      - name: Install dependencies and ruff
-        run: |
-          pip install -r backend/${{ matrix.service }}/requirements.txt
-          pip install ruff==0.6.8
-
-      - name: Lint with ruff
-        run: |
-          ruff check backend/${{ matrix.service }}/app/ \
-            --ignore E501,F401,F811,E402 \
-            --target-version py312
-
-  tests:
+  tests-python:
     name: Tests — ${{ matrix.service }}
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - service: iam-service
-            test_path: iam-service/tests/
-          - service: patient-service
-            test_path: patient-service/tests/
-          - service: clinical-service
-            test_path: clinical-service/tests/
-          - service: ai-service
-            test_path: ai-service/tests/
-          - service: reporting-service
-            test_path: reporting-service/tests/
-          - service: gateway
-            test_path: gateway/tests/
+          - { service: ai-service, directory: backend/ai-service }
+          - { service: reporting-service, directory: backend/reporting-service }
+          - { service: gateway, directory: backend/gateway }
+          - { service: patient-clinical-service, directory: backend/patient-clinical-service }
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
-          cache-dependency-path: backend/${{ matrix.service }}/requirements.txt
-
-      - name: Install dependencies and pytest
-        run: |
-          pip install -r backend/${{ matrix.service }}/requirements.txt
-          pip install pytest==8.3.2 pytest-asyncio==0.24.0 pytest-cov==5.0.0
-
+          cache-dependency-path: ${{ matrix.directory }}/requirements.txt
+      - run: pip install -r ${{ matrix.directory }}/requirements.txt && pip install pytest==8.3.2 pytest-asyncio==0.24.0 pytest-cov==5.0.0
       - name: Run tests
         env:
           PYTHONPATH: ${{ github.workspace }}/backend
         run: |
           cd backend
-          pytest ${{ matrix.test_path }} \
-            -v \
-            --tb=short \
-            --cov=${{ matrix.service }}/app \
-            --cov-report=xml:coverage-${{ matrix.service }}.xml
-
-      - name: Upload coverage
-        uses: actions/upload-artifact@v4
+          pytest ${{ matrix.service }}/tests/ -v --tb=short \
+            --cov=${{ matrix.service }}/app --cov-report=xml:coverage-${{ matrix.service }}.xml
+      - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: coverage-${{ matrix.service }}
           path: backend/coverage-${{ matrix.service }}.xml
+
+  tests-java:
+    name: Tests — java-${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [iam-service, patient-clinical-service, gateway]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+      - name: Build and test Maven module
+        working-directory: backend-java/${{ matrix.service }}
+        run: mvn -B test
