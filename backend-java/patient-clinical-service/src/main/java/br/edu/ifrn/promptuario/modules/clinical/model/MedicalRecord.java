@@ -116,7 +116,7 @@ public class MedicalRecord {
     @OneToMany(mappedBy = "record", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<MedicalRecordHistory> history = new ArrayList<>();
 
-    protected MedicalRecord() {
+    public MedicalRecord() {
     }
 
     @jakarta.persistence.PrePersist
