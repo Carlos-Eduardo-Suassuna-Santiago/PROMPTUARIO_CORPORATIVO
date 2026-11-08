@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <style>
+        @page { size: A4; margin: 28px; }
+        body { font-family: Helvetica, Arial, sans-serif; color: #243447; font-size: 11px; }
+        header { border-bottom: 3px solid #176b87; padding-bottom: 12px; margin-bottom: 18px; }
+        h1 { color: #176b87; font-size: 22px; margin: 0; }
+        h2 { color: #176b87; font-size: 14px; margin-top: 20px; border-bottom: 1px solid #d8e3e8; padding-bottom: 5px; }
+        .grid { display: table; width: 100%; }
+        .cell { display: table-cell; width: 50%; padding: 4px 8px 4px 0; }
+        .label { color: #657786; font-size: 9px; text-transform: uppercase; }
+        .value { font-size: 11px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+        th { background: #176b87; color: white; text-align: left; padding: 7px; }
+        td { border-bottom: 1px solid #d8e3e8; padding: 7px; vertical-align: top; }
+        .footer { border-top: 1px solid #d8e3e8; margin-top: 28px; padding-top: 8px; color: #657786; font-size: 8px; }
+    </style>
+</head>
+<body>
+<header><h1>Prescrição Médica</h1><div th:text="${issuedAt}">2026-01-01</div></header>
+<section class="grid">
+    <div class="cell"><div class="label">Nome do Paciente</div><div class="value" th:text="${patient.fullName}">Paciente</div></div>
+    <div class="cell"><div class="label">CPF</div><div class="value" th:text="${patient.cpf}">-</div></div>
+    <div class="cell"><div class="label">Data de Nascimento</div><div class="value" th:text="${patient.dateOfBirth}">-</div></div>
+    <div class="cell"><div class="label">Médico Responsável</div><div class="value" th:text="${doctorName}">-</div></div>
+    <div class="cell"><div class="label">CRM</div><div class="value" th:text="${doctorCrm}">-</div></div>
+</section>
+<h2>Medicamentos</h2>
+<table><thead><tr><th>Medicamento</th><th>Dosagem</th><th>Frequência</th><th>Duração</th><th>Instruções</th></tr></thead>
+    <tbody><tr th:each="medication : ${medications}">
+        <td th:text="${medication['name']}">-</td><td th:text="${medication['dosage']}">-</td>
+        <td th:text="${medication['frequency']}">-</td><td th:text="${medication['durationDays']} + ' dias'">-</td>
+        <td th:text="${medication['instructions']}">-</td>
+    </tr></tbody>
+</table>
+<h2>Instruções gerais</h2><p th:text="${prescription.instructions}">Siga as orientações médicas.</p>
+<p>Validade: <span th:text="${validUntil}">2026-01-30</span></p>
+<footer class="footer">Documento eletrônico. A autenticidade pode ser verificada pelo hash SHA-256: <span th:text="${prescription.signatureHash}">-</span></footer>
+</body></html>
