@@ -160,26 +160,31 @@ Dia focado no avanço da camada de persistência e segurança do ecossistema Jav
 - Implementação inicial de `PrescriptionPdfWorker`, que consome mensagens da fila de geração, carrega prescrição e paciente, renderiza o template em PDF, envia o arquivo ao bucket S3, atualiza os metadados da prescrição e publica `prescription.generated`.
 - Configuração da fila `prescription.pdf.generation`, fila de mensagens mortas, binding RabbitMQ, concorrência de consumidores, executor dedicado e retentativas.
 - Criação dos templates HTML de prescrição médica e atestado.
-- Integração das alterações de mensageria e armazenamento de documentos clínicos na branch `develop` por meio de merge.
+- Integração do worker de PDF na branch `develop`, no commit `5112b67` (`feat(patient): gera PDFs de prescrições em worker`).
+- Correção dos bindings RabbitMQ com `@Qualifier` para selecionar explicitamente as exchanges IAM e legada, registrada no commit `de5fd8c`.
+- Configuração do serviço como OAuth2 Resource Server com validação de JWT HS256, conversão do claim `role` em autoridade `ROLE_*`, rotas públicas definidas e respostas JSON padronizadas para falhas de autenticação/autorização.
+- Criação de `GlobalExceptionHandler` e dos tipos de resposta/erro da API para tratar validação, conflitos, acesso negado, recursos ausentes e erros de negócio.
+- Registro da configuração de segurança no commit `263a252` (`feat(security): configura resource server JWT e erros globais`), na branch `feature/seguranca`.
 
 ---
 
 ### ❌ O que deu Erro
 
-- Nenhum erro de execução foi registrado nesta atividade. A compilação e os testes do worker ainda não foram validados nesta sessão.
+- Nenhum erro de execução foi registrado nesta atividade. A compilação e os testes das alterações recentes não foram validados nesta sessão.
 
 ---
 
 ### 🟢 O que Funcionou
 
-- O worker, a configuração da fila e os templates estão presentes no workspace.
-- As alterações locais relacionadas à geração de PDF e configuração RabbitMQ permanecem pendentes de commit.
+- As entregas de worker PDF e qualificação dos bindings RabbitMQ foram registradas em commits na branch `develop`.
+- A configuração de segurança e o tratamento global de erros foram commitados na branch `feature/seguranca`.
+- O workspace está sem alterações locais pendentes no momento da atualização do diário.
 
 ---
 
 ### 📝 Resumo do Dia
 
-Avanço no processamento assíncrono de prescrições no `patient-clinical-service`: foi criada a estrutura inicial do worker que renderiza documentos PDF a partir de templates Thymeleaf, salva os arquivos no S3 e publica um evento após a geração. Também foram adicionadas configurações de fila, retentativas e templates de prescrição e atestado. A compilação e os testes permanecem pendentes de validação; as alterações atuais ainda não foram commitadas.
+Avanço no `patient-clinical-service` com o processamento assíncrono de prescrições e geração de PDFs, incluindo renderização por Thymeleaf, armazenamento no S3 e publicação de evento. A entrega foi commitada em `develop`, junto com o ajuste de bindings RabbitMQ. Também foi implementada e commitada na branch `feature/seguranca` a validação de JWT no Resource Server e a padronização de respostas de erro. A compilação e os testes dessas alterações ainda precisam ser validados.
 
 ---
 
