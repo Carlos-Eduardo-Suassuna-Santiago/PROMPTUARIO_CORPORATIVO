@@ -9,6 +9,7 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 @Configuration
 public class RabbitMQConfig {
@@ -40,22 +41,26 @@ public class RabbitMQConfig {
     }
 
     @Bean
-    public Binding userCreatedBinding(Queue iamEventsQueue, TopicExchange iamEventsExchange) {
+    public Binding userCreatedBinding(Queue iamEventsQueue,
+                                     @Qualifier("iamEventsExchange") TopicExchange iamEventsExchange) {
         return BindingBuilder.bind(iamEventsQueue).to(iamEventsExchange).with("user.created");
     }
 
     @Bean
-    public Binding userDeactivatedBinding(Queue iamEventsQueue, TopicExchange iamEventsExchange) {
+    public Binding userDeactivatedBinding(Queue iamEventsQueue,
+                                          @Qualifier("iamEventsExchange") TopicExchange iamEventsExchange) {
         return BindingBuilder.bind(iamEventsQueue).to(iamEventsExchange).with("user.deactivated");
     }
 
     @Bean
-    public Binding legacyUserCreatedBinding(Queue iamEventsQueue, TopicExchange legacyIamEventsExchange) {
+    public Binding legacyUserCreatedBinding(Queue iamEventsQueue,
+                                            @Qualifier("legacyIamEventsExchange") TopicExchange legacyIamEventsExchange) {
         return BindingBuilder.bind(iamEventsQueue).to(legacyIamEventsExchange).with("iam.user.created");
     }
 
     @Bean
-    public Binding legacyUserDeactivatedBinding(Queue iamEventsQueue, TopicExchange legacyIamEventsExchange) {
+    public Binding legacyUserDeactivatedBinding(Queue iamEventsQueue,
+                                                @Qualifier("legacyIamEventsExchange") TopicExchange legacyIamEventsExchange) {
         return BindingBuilder.bind(iamEventsQueue).to(legacyIamEventsExchange).with("iam.user.deactivated");
     }
 
