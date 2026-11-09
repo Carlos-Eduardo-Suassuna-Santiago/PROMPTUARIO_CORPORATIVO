@@ -31,4 +31,19 @@ class ServiceFallbackControllerTest {
                 })
                 .verifyComplete();
     }
+
+    @Test
+    void returnsBadGatewayForRabbitManagementFailure() {
+        ServiceFallbackController controller = new ServiceFallbackController();
+        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/fallback/rabbitmq"));
+
+        StepVerifier.create(controller.rabbitmq(exchange))
+                .assertNext(response -> {
+                    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
+                    assertThat(response.getBody().service()).isEqualTo("rabbitmq-management");
+                    assertThat(response.getBody().detail())
+                            .isEqualTo("Interface de gerenciamento do RabbitMQ temporariamente indisponível");
+                })
+                .verifyComplete();
+    }
 }

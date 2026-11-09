@@ -112,6 +112,10 @@ spring:
           filters:
             - RewritePath=/rabbitmq/(?<segment>.*), /$\{segment}
             - RemoveRequestHeader=Authorization
+            - name: CircuitBreaker
+              args:
+                name: rabbitmqCircuitBreaker
+                fallbackUri: forward:/fallback/rabbitmq
 
 management:
   endpoint:

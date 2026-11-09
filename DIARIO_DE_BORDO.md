@@ -536,6 +536,46 @@ Foi adicionada tolerância a falhas no API Gateway com circuit breakers Resilien
 
 ---
 
+## 2026-11-09 — Health Checks Agregados e Diagnóstico do RabbitMQ
+
+### 📋 Implementação Proposta
+
+- Disponibilizar endpoints reativos de saúde do Gateway e agregação do estado dos microsserviços, além de tratar falhas de conexão da interface RabbitMQ com resposta 502 amigável.
+
+---
+
+### ✅ O que foi Implementado
+
+- Criação de `WebClientConfig` com `HttpClient` Reactor Netty, timeout de conexão de 2 segundos e timeout de leitura/resposta de 3 segundos.
+- Criação do record imutável `HealthStatusResponse`, com mapa de serviços não modificável.
+- Implementação de `GET /healthz`, que retorna imediatamente `status=ok` e `service=gateway`.
+- Implementação de `GET /healthz/services` usando `Mono.zip` para consultar em paralelo `/healthz` do IAM, Patient/Clinical, AI e Reporting; cada chamada tem timeout de 3 segundos e converte erros/timeout em `unreachable`.
+- Mapeamento de HTTP 200 para `ok`, outros status HTTP para `degraded`, aliases históricos `patient` e `clinical` para o estado de `patient_clinical` e status geral `ok` ou `degraded`, mantendo HTTP 200 no agregador.
+- Adição de CircuitBreaker à rota `/rabbitmq/**`, preservando o encaminhamento à porta 15672, e fallback dedicado com HTTP 502 e mensagem JSON amigável para falhas da interface de gerenciamento.
+- Inclusão de testes para health local, agregação de estados, aliases, indisponibilidade de serviço e resposta 502 do RabbitMQ.
+
+---
+
+### ❌ O que deu Erro
+
+- Nenhum erro de implementação permaneceu; os testes de health e fallback concluíram sem falhas.
+
+---
+
+### 🟢 O que Funcionou
+
+- `./mvnw clean test` concluído com 22 testes, 0 falhas e 0 erros.
+- Confirmada a inicialização do contexto Gateway com rotas YAML, endpoints Actuator e fallbacks.
+- Busca estática sem chamadas bloqueantes nos componentes de health e WebClient.
+
+---
+
+### 📝 Resumo do Dia
+
+Foram adicionados health checks reativos para o Gateway e para os serviços internos, com consultas paralelas, timeouts curtos e compatibilidade com os aliases históricos de Patient/Clinical. A rota de gerenciamento do RabbitMQ agora conta com CircuitBreaker e fallback HTTP 502. A suíte final passou com 22 testes.
+
+---
+
 <!-- TEMPLATE PARA NOVO DIA — Copie o bloco abaixo ao iniciar uma nova entrada -->
 
 <!--

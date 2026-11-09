@@ -43,7 +43,24 @@ public class ServiceFallbackController {
         return unavailable("iam", exchange);
     }
 
+    @RequestMapping(path = "/rabbitmq", produces = "application/json")
+    public Mono<ResponseEntity<FallbackResponse>> rabbitmq(ServerWebExchange exchange) {
+        return unavailable(
+                "rabbitmq-management",
+                "Interface de gerenciamento do RabbitMQ temporariamente indisponível",
+                HttpStatus.BAD_GATEWAY,
+                exchange);
+    }
+
     private Mono<ResponseEntity<FallbackResponse>> unavailable(String service, ServerWebExchange exchange) {
+        return unavailable(service, DETAIL, HttpStatus.SERVICE_UNAVAILABLE, exchange);
+    }
+
+    private Mono<ResponseEntity<FallbackResponse>> unavailable(
+            String service,
+            String detail,
+            HttpStatus status,
+            ServerWebExchange exchange) {
         Throwable originalException = exchange.getAttribute(
                 ServerWebExchangeUtils.CIRCUITBREAKER_EXECUTION_EXCEPTION_ATTR);
         Throwable cause = unwrap(originalException);
@@ -63,8 +80,8 @@ public class ServiceFallbackController {
             exceptionType,
             exceptionMessage);
 
-        FallbackResponse body = new FallbackResponse(DETAIL, service, Instant.now());
-        return Mono.just(ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+        FallbackResponse body = new FallbackResponse(detail, service, Instant.now());
+        return Mono.just(ResponseEntity.status(status)
                 .header("X-Circuit-Breaker", "open")
                 .body(body));
     }
