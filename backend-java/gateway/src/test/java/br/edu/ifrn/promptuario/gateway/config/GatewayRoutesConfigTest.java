@@ -69,6 +69,22 @@ class GatewayRoutesConfigTest {
         }
 
         @Test
+        void appliesRateLimiterToApiRoutes() {
+                StepVerifier.create(routeLocator.getRoutes().collectMap(Route::getId))
+                                .assertNext(routes -> {
+                                        assertThat(routes.get("iam-public").getFilters()).hasSize(1);
+                                        assertThat(routes.get("iam-protected").getFilters()).hasSize(1);
+                                        assertThat(routes.get("patient-clinical").getFilters()).hasSize(1);
+                                        assertThat(routes.get("ai-debug-public").getFilters()).hasSize(1);
+                                        assertThat(routes.get("ai-protected").getFilters()).hasSize(1);
+                                        assertThat(routes.get("reporting").getFilters()).hasSize(1);
+                                        assertThat(routes.get("iam-metrics").getFilters()).isEmpty();
+                                        assertThat(routes.get("rabbitmq-ui").getFilters()).hasSize(2);
+                                })
+                                .verifyComplete();
+        }
+
+        @Test
         void exposesConfiguredActuatorEndpoints() {
                 assertThat(webEndpointProperties.getExposure().getInclude())
                         .contains("health", "info", "prometheus", "gateway");

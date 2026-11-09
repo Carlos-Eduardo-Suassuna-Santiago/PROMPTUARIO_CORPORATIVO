@@ -56,6 +56,14 @@ public class RequestTracingGlobalFilter implements GlobalFilter, Ordered {
     }
 
     private String clientIp(ServerWebExchange exchange) {
+        String forwardedFor = nonBlank(exchange.getRequest().getHeaders().getFirst(FORWARDED_FOR));
+        if (forwardedFor != null) {
+            String firstAddress = forwardedFor.split(",", 2)[0].trim();
+            if (!firstAddress.isBlank()) {
+                return firstAddress;
+            }
+        }
+
         InetSocketAddress remoteAddress = exchange.getRequest().getRemoteAddress();
         if (remoteAddress == null) {
             return "unknown";
