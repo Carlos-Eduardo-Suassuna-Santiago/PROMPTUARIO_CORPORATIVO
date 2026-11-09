@@ -576,6 +576,46 @@ Foram adicionados health checks reativos para o Gateway e para os serviços inte
 
 ---
 
+## 2026-11-09 — Containerização do API Gateway Java
+
+### 📋 Implementação Proposta
+
+- Criar uma imagem Docker otimizada e não-root para o Gateway Java e substituir o gateway antigo no Compose do backend.
+
+---
+
+### ✅ O que foi Implementado
+
+- Criação de `backend-java/gateway/Dockerfile` multi-stage com Maven 3.9/Java 21 Alpine para build e Eclipse Temurin 21 JRE Alpine para runtime.
+- Configuração do estágio de build para baixar dependências Maven antes de copiar o código e gerar o JAR executável sem executar testes dentro da imagem.
+- Criação do usuário não-root `gatewayuser`, instalação de `curl` e `tzdata`, configuração de opções JVM para containers/Netty, exposição da porta 8000 e healthcheck em `/healthz`.
+- Criação de `.dockerignore` para excluir artefatos `target`, Maven Wrapper e arquivos associados do contexto de build.
+- Substituição do serviço `gateway` em `backend/docker-compose.yml` pela imagem Java, com porta 8000, variáveis de ambiente, rede `backend` e dependências saudáveis de Redis, IAM e Patient/Clinical.
+- Parametrização de `REDIS_PORT` no `application.yml` do Gateway.
+- Alinhamento da URL de gerenciamento RabbitMQ ao usuário `promptuario` e à senha configurada no próprio Compose.
+
+---
+
+### ❌ O que deu Erro
+
+- A construção da imagem não pôde ser concluída porque a conexão com o Docker Hub foi resetada ao baixar a imagem base `maven:3.9-eclipse-temurin-21-alpine`. A falha ocorreu antes da execução dos passos do Dockerfile.
+
+---
+
+### 🟢 O que Funcionou
+
+- `docker compose -f backend/docker-compose.yml config --quiet` validou a sintaxe e a configuração do Compose.
+- `./mvnw clean test` passou com 22 testes, 0 falhas e 0 erros.
+- Os serviços IAM e Patient/Clinical já possuem healthchecks nos respectivos Dockerfiles, permitindo usar `condition: service_healthy` no Gateway.
+
+---
+
+### 📝 Resumo do Dia
+
+O Gateway Java foi preparado para execução em container não-root com imagem multi-stage e healthcheck interno, e o Compose do backend foi atualizado para construí-lo no lugar do gateway anterior. A configuração do Compose e a suíte Maven passaram; a validação da imagem permanece pendente devido à falha de conexão com o registry Docker Hub.
+
+---
+
 <!-- TEMPLATE PARA NOVO DIA — Copie o bloco abaixo ao iniciar uma nova entrada -->
 
 <!--
