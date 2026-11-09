@@ -57,4 +57,22 @@ class RequestTracingGlobalFilterTest {
         assertThat(downstreamExchange.get().getRequest().getHeaders().getFirst("X-Request-Id"))
                 .isEqualTo("client-trace-id");
     }
+
+    @Test
+    void preservesFirstForwardedClientAddress() {
+        RequestTracingGlobalFilter filter = new RequestTracingGlobalFilter();
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/")
+                        .header("X-Forwarded-For", "198.51.100.24, 10.0.0.5"));
+        AtomicReference<ServerWebExchange> downstreamExchange = new AtomicReference<>();
+        GatewayFilterChain chain = request -> {
+            downstreamExchange.set(request);
+            return Mono.empty();
+        };
+
+        StepVerifier.create(filter.filter(exchange, chain)).verifyComplete();
+
+        assertThat(downstreamExchange.get().getRequest().getHeaders().getFirst("X-Forwarded-For"))
+                .isEqualTo("198.51.100.24");
+    }
 }

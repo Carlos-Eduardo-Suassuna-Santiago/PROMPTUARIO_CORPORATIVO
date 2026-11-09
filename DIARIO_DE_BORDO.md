@@ -297,6 +297,50 @@ A camada de identidade e controle de tokens revogados do Gateway foi concluída 
 
 ---
 
+## 2026-11-05 — Rate Limiting Distribuído no Gateway
+
+### 📋 Implementação Proposta
+
+- Aplicar limites distribuídos por IP, usuário autenticado e chave de API nas rotas públicas e de dados do Gateway, usando Redis e respostas 429 compatíveis com o FastAPI.
+
+---
+
+### ✅ O que foi Implementado
+
+- Criação de `RateLimiterConfig` com o `KeyResolver` reativo `userOrIpKeyResolver`: chave de API identificada por SHA-256, usuário autenticado pelo `sub` e cliente anônimo pelo primeiro IP de `X-Forwarded-For`, com fallback para o endereço remoto.
+- Configuração dos buckets Redis com `replenishRate` e `burstCapacity` solicitados: anônimo `30/60`, autenticado `300/400` e API key `120/150`.
+- Implementação de `PolicyAwareRedisRateLimiter` para selecionar a política pelo prefixo da chave (`ip:`, `user:` ou `apikey:`) e compartilhar o bucket da identidade entre as rotas.
+- Conversão da quota por minuto para a unidade do Spring Cloud Gateway, que mede tokens por segundo: cada requisição consome 60 tokens, resultando em 30, 300 e 120 requisições por minuto, respectivamente.
+- Aplicação de `RequestRateLimiter` nas rotas públicas de autenticação, AI e nas rotas de dados de pacientes, consultas, agendas, prontuários e relatórios.
+- Implementação da resposta 429 do Gateway com `Retry-After` calculado a partir dos tokens restantes e o payload `{"detail":"Taxa de requisições excedida. Tente novamente em breve."}`. A customização identifica apenas recusas do próprio Gateway e preserva respostas 429 dos serviços downstream.
+- Ajuste do tracing para preservar o primeiro endereço de `X-Forwarded-For`, permitindo que rate limiting anônimo e tracing usem o IP encaminhado pelo proxy.
+- Inclusão de testes para hash da API key, resolução por usuário e IP, seleção dos buckets, aplicação do filtro nas rotas, `Retry-After` e corpo HTTP 429.
+
+---
+
+### ❌ O que deu Erro
+
+- A primeira integração com o DSL usou `Consumer` onde o Gateway exige uma função que retorne `UriSpec`; o helper foi ajustado para a assinatura da versão utilizada.
+- A presença de vários beans `RateLimiter` causou ambiguidade na auto-configuração da fábrica. O limitador composto foi marcado como `@Primary`.
+- O Spring Cloud Gateway mede reposição em tokens por segundo, enquanto os requisitos são por minuto. O custo de 60 tokens por requisição foi usado para manter os limites temporais pedidos com os valores de `replenishRate` e `burstCapacity` especificados.
+
+---
+
+### 🟢 O que Funcionou
+
+- `./mvnw clean test` concluído com 16 testes, 0 falhas e 0 erros.
+- Testada a seleção de buckets distintos para IP anônimo, usuário autenticado e API key com hash SHA-256.
+- Confirmadas a aplicação do filtro nas rotas definidas e a resposta JSON 429 com `Retry-After`; respostas 429 originadas pelos serviços downstream permanecem intactas.
+- Verificada a ausência de chamadas `.block()` e `toFuture()` nos componentes de rate limiting.
+
+---
+
+### 📝 Resumo do Dia
+
+Foi implementado rate limiting distribuído com Redis para as rotas de API do Gateway. As requisições são agrupadas por IP, identidade autenticada ou hash de API key, com quotas de 30, 300 e 120 por minuto. Recusas do Gateway retornam o formato 429 esperado e as cotas funcionam entre rotas para cada identidade. A suíte final passou com 16 testes.
+
+---
+
 <!-- TEMPLATE PARA NOVO DIA — Copie o bloco abaixo ao iniciar uma nova entrada -->
 
 <!--
