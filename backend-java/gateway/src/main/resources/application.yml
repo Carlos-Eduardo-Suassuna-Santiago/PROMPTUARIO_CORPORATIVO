@@ -23,6 +23,95 @@ spring:
               - OPTIONS
             allowed-headers: "*"
             allow-credentials: true
+      routes:
+        - id: iam-metrics
+          uri: ${app.services.iam}
+          predicates:
+            - Path=/metrics
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: iamCircuitBreaker
+                fallbackUri: forward:/fallback/iam
+        - id: iam-public
+          uri: ${app.services.iam}
+          predicates:
+            - Path=/api/v1/auth/login,/api/v1/auth/refresh,/api/v1/auth/forgot-password,/api/v1/auth/reset-password,/api/v1/auth/register-patient,/api/v1/auth/oauth/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                key-resolver: "#{@userOrIpKeyResolver}"
+            - name: CircuitBreaker
+              args:
+                name: iamCircuitBreaker
+                fallbackUri: forward:/fallback/iam
+        - id: iam-protected
+          uri: ${app.services.iam}
+          predicates:
+            - Path=/api/v1/auth/**,/api/v1/users/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                key-resolver: "#{@userOrIpKeyResolver}"
+            - name: CircuitBreaker
+              args:
+                name: iamCircuitBreaker
+                fallbackUri: forward:/fallback/iam
+        - id: patient-clinical
+          uri: ${app.services.patient-clinical}
+          predicates:
+            - Path=/api/v1/patients/**,/api/v1/appointments/**,/api/v1/schedules/**,/api/v1/records/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                key-resolver: "#{@userOrIpKeyResolver}"
+            - name: CircuitBreaker
+              args:
+                name: patientClinicalCircuitBreaker
+                fallbackUri: forward:/fallback/patient-clinical
+        - id: ai-debug-public
+          uri: ${app.services.ai}
+          predicates:
+            - Path=/api/v1/ai/debug
+          filters:
+            - name: RequestRateLimiter
+              args:
+                key-resolver: "#{@userOrIpKeyResolver}"
+            - name: CircuitBreaker
+              args:
+                name: aiCircuitBreaker
+                fallbackUri: forward:/fallback/ai
+        - id: ai-protected
+          uri: ${app.services.ai}
+          predicates:
+            - Path=/api/v1/ai/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                key-resolver: "#{@userOrIpKeyResolver}"
+            - name: CircuitBreaker
+              args:
+                name: aiCircuitBreaker
+                fallbackUri: forward:/fallback/ai
+        - id: reporting
+          uri: ${app.services.reporting}
+          predicates:
+            - Path=/api/v1/reports/**,/api/v1/admin/**,/api/v1/audit/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                key-resolver: "#{@userOrIpKeyResolver}"
+            - name: CircuitBreaker
+              args:
+                name: reportingCircuitBreaker
+                fallbackUri: forward:/fallback/reporting
+        - id: rabbitmq-ui
+          uri: ${app.services.rabbitmq-management}
+          predicates:
+            - Path=/rabbitmq/**
+          filters:
+            - RewritePath=/rabbitmq/(?<segment>.*), /$\{segment}
+            - RemoveRequestHeader=Authorization
 
 management:
   endpoint:
@@ -44,6 +133,11 @@ management:
       export:
         enabled: true
 
+logging:
+  level:
+    org.springframework.cloud.gateway: ${GATEWAY_LOG_LEVEL:INFO}
+    br.edu.ifrn.promptuario.gateway.fallback: ${GATEWAY_FALLBACK_LOG_LEVEL:INFO}
+
 app:
   services:
     iam: ${IAM_SERVICE_URL:http://iam-service:8000}
@@ -54,7 +148,3 @@ app:
   security:
     jwt:
       secret: ${JWT_SECRET_KEY:change-me-in-production-super-secret-key-min-32-chars}
-
-logging:
-  level:
-    org.springframework.cloud.gateway: ${GATEWAY_LOG_LEVEL:INFO}
