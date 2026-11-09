@@ -37,7 +37,8 @@ public class SecurityConfig {
                                 "/api/v1/auth/oauth/**",
                                 "/api/v1/ai/debug",
                                 "/api/v1/schedules/*/available-slots",
-                                "/rabbitmq/**")
+                                "/rabbitmq/**",
+                                "/fallback/**")
                         .permitAll()
                         .anyExchange().authenticated())
                 .oauth2ResourceServer(resourceServer -> resourceServer

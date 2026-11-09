@@ -493,6 +493,49 @@ Foi implementado rate limiting distribuído com Redis para as rotas de API do Ga
 
 ---
 
+## 2026-11-09 — Circuit Breakers e Fallbacks Reativos no Gateway
+
+### 📋 Implementação Proposta
+
+- Configurar circuit breakers reativos para proteger os serviços internos, limitar o tempo de espera por resposta e retornar fallbacks padronizados quando houver abertura do circuito ou timeout.
+
+---
+
+### ✅ O que foi Implementado
+
+- Criação de `ResilienceConfig` com `Customizer<ReactiveResilience4JCircuitBreakerFactory>` para `patientClinicalCircuitBreaker`, `reportingCircuitBreaker`, `iamCircuitBreaker` e `aiCircuitBreaker`.
+- Configuração da janela de chamadas em 3, threshold de falhas de 50%, espera de 30 segundos em estado aberto e 2 chamadas permitidas em half-open.
+- Configuração de timeout de 30 segundos para Patient/Clinical, Reporting e IAM e de 60 segundos para AI.
+- Migração da tabela de rotas Java DSL para `spring.cloud.gateway.routes` no `application.yml`, declarando os filtros `CircuitBreaker` e os `fallbackUri` específicos de cada serviço, sem manter rotas duplicadas.
+- Criação do `ServiceFallbackController` reativo para Patient/Clinical, AI, Reporting e IAM. Os fallbacks retornam HTTP 503, `X-Circuit-Breaker: open` e JSON com `detail`, serviço e timestamp ISO-8601.
+- Captura e classificação da causa original (`CallNotPermittedException`, timeout ou falha downstream), com logs estruturados por serviço, motivo, tipo e mensagem da exceção.
+- Liberação de `/fallback/**` na configuração de segurança para permitir o forward interno do Gateway.
+- Inclusão de testes para filtros e IDs de rotas, thresholds e timeouts efetivos do factory e formato/status do fallback.
+
+---
+
+### ❌ O que deu Erro
+
+- A primeira carga do contexto revelou que `logging.level` havia sido aninhado incorretamente com as propriedades Actuator. A hierarquia YAML foi corrigida e os endpoints Actuator continuaram expostos.
+- A verificação dos registries Resilience4j precisou executar um publisher, pois o factory instancia breakers e time limiters sob demanda.
+
+---
+
+### 🟢 O que Funcionou
+
+- `./mvnw clean test` concluído com 18 testes, 0 falhas e 0 erros.
+- Confirmados no teste os valores de janela, threshold, tempo aberto, chamadas half-open e timeout de cada breaker.
+- As rotas YAML carregaram com os filtros CircuitBreaker e os destinos/fallbacks configurados.
+- O controller retornou o contrato 503 esperado e registrou o timeout original com motivo estruturado.
+
+---
+
+### 📝 Resumo do Dia
+
+Foi adicionada tolerância a falhas no API Gateway com circuit breakers Resilience4j, timeouts por serviço e fallbacks reativos padronizados. As rotas foram centralizadas no YAML para declarar os filtros por serviço; a suíte final validou os parâmetros efetivos e passou com 18 testes.
+
+---
+
 <!-- TEMPLATE PARA NOVO DIA — Copie o bloco abaixo ao iniciar uma nova entrada -->
 
 <!--
