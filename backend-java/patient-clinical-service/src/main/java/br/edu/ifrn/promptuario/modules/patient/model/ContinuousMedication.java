@@ -87,7 +87,7 @@ public class ContinuousMedication {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    protected ContinuousMedication() {
+    public ContinuousMedication() {
     }
 
     @jakarta.persistence.PrePersist

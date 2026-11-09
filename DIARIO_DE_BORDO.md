@@ -9,7 +9,9 @@
 - [2026-08-28](#2026-08-28)
 - [2026-11-03](#2026-11-03)
 - [2026-11-04](#2026-11-04)
-- [2026-11-05 — Entrada mais recente](#2026-11-05)
+- [2026-11-05](#2026-11-05)
+- [2026-11-08 — Entrada mais recente](#2026-11-08)
+- [2026-11-09 — Entrada mais recente](#2026-11-09)
 
 ---
 
@@ -144,6 +146,87 @@ Dia focado no avanço da camada de persistência e segurança do ecossistema Jav
 
 ---
 
+## 2026-11-09
+
+### 📋 Implementação Proposta
+
+- Avançar na camada HTTP do `patient-clinical-service`, expondo operações de pacientes e dados clínicos por endpoints REST protegidos por papéis.
+- Ampliar a pesquisa paginada de consultas com filtro pelo nome do paciente.
+
+---
+
+### ✅ O que foi Implementado
+
+- Criação de `PatientController` com endpoints para consulta, cadastro e atualização de pacientes, alergias, vacinas, medicamentos, documentos e resumo clínico.
+- Criação de controllers para agendamentos, escalas médicas e prontuários, incluindo operações para prescrições, exames, resultados e atestados.
+- Criação de `HealthController` com endpoint `/healthz`.
+- Aplicação de regras de autorização por papel usando `@PreAuthorize` nos endpoints de negócio.
+- Ampliação da consulta paginada de agendamentos com filtro opcional pelo nome do paciente, aplicado também na consulta de contagem.
+
+---
+
+### ❌ O que deu Erro
+
+- Nenhum erro de execução foi registrado nesta atividade. Compilação e testes não foram executados nesta sessão.
+
+---
+
+### 🟢 O que Funcionou
+
+- Os novos controllers e a alteração do repositório estão presentes no workspace.
+- As alterações do dia permanecem locais e ainda não foram commitadas.
+
+---
+
+### 📝 Resumo do Dia
+
+Avanço da camada REST do `patient-clinical-service`, com endpoints para pacientes, consultas, escalas médicas, prontuários e verificações de saúde. Os endpoints de negócio receberam regras de autorização por papel, e a pesquisa paginada de agendamentos passou a aceitar filtro opcional pelo nome do paciente. O código permanece pendente de compilação, testes e commit.
+
+---
+
+## 2026-11-08
+
+### 📋 Implementação Proposta
+
+- Avançar no processamento assíncrono de prescrições médicas e na geração de PDFs no `backend-java/patient-clinical-service`.
+- Integrar o worker de PDF à fila RabbitMQ, armazenar o documento gerado no S3 e publicar o evento de conclusão.
+
+---
+
+### ✅ O que foi Implementado
+
+- Inclusão de dependências para renderização de PDF a partir de HTML com Thymeleaf e para retentativas com Spring Retry.
+- Implementação inicial de `PrescriptionPdfWorker`, que consome mensagens da fila de geração, carrega prescrição e paciente, renderiza o template em PDF, envia o arquivo ao bucket S3, atualiza os metadados da prescrição e publica `prescription.generated`.
+- Configuração da fila `prescription.pdf.generation`, fila de mensagens mortas, binding RabbitMQ, concorrência de consumidores, executor dedicado e retentativas.
+- Criação dos templates HTML de prescrição médica e atestado.
+- Integração do worker de PDF na branch `develop`, no commit `5112b67` (`feat(patient): gera PDFs de prescrições em worker`).
+- Correção dos bindings RabbitMQ com `@Qualifier` para selecionar explicitamente as exchanges IAM e legada, registrada no commit `de5fd8c`.
+- Configuração do serviço como OAuth2 Resource Server com validação de JWT HS256, conversão do claim `role` em autoridade `ROLE_*`, rotas públicas definidas e respostas JSON padronizadas para falhas de autenticação/autorização.
+- Criação de `GlobalExceptionHandler` e dos tipos de resposta/erro da API para tratar validação, conflitos, acesso negado, recursos ausentes e erros de negócio.
+- Registro da configuração de segurança no commit `263a252` (`feat(security): configura resource server JWT e erros globais`), na branch `feature/seguranca`.
+
+---
+
+### ❌ O que deu Erro
+
+- Nenhum erro de execução foi registrado nesta atividade. A compilação e os testes das alterações recentes não foram validados nesta sessão.
+
+---
+
+### 🟢 O que Funcionou
+
+- As entregas de worker PDF e qualificação dos bindings RabbitMQ foram registradas em commits na branch `develop`.
+- A configuração de segurança e o tratamento global de erros foram commitados na branch `feature/seguranca`.
+- O workspace está sem alterações locais pendentes no momento da atualização do diário.
+
+---
+
+### 📝 Resumo do Dia
+
+Avanço no `patient-clinical-service` com o processamento assíncrono de prescrições e geração de PDFs, incluindo renderização por Thymeleaf, armazenamento no S3 e publicação de evento. A entrega foi commitada em `develop`, junto com o ajuste de bindings RabbitMQ. Também foi implementada e commitada na branch `feature/seguranca` a validação de JWT no Resource Server e a padronização de respostas de erro. A compilação e os testes dessas alterações ainda precisam ser validados.
+
+---
+
 ## 2026-11-05
 
 ### 📋 Implementação Proposta
@@ -151,6 +234,13 @@ Dia focado no avanço da camada de persistência e segurança do ecossistema Jav
 - Implementação do modelo de domínio, entidades JPA e repositórios Spring Data JPA para os módulos Shared, Patient e Clinical no serviço unificado (`/backend-java/patient-clinical-service`).
 - Inicialização da Fase 1 do microsserviço de identidade e acesso em Java (`/backend-java/iam-service`), incluindo dependências Maven, configurações base e infraestrutura de integração.
 - Implementação da Fase 3 do IAM Java: entidades JPA, enum de papéis, repositórios Spring Data e teste de integração com PostgreSQL 15.
+- Implementação da Fase 4 do IAM Java: DTOs imutáveis com Java Records, validações Jakarta e compatibilidade dos contratos JSON com o frontend.
+- Implementação da Fase 5 do IAM Java: JWT HS256, BCrypt, blacklist de tokens no Redis e configuração stateless do Spring Security.
+- Implementação da Fase 6 do IAM Java: serviços transacionais de autenticação e usuários, revogação de tokens e publicação de eventos de domínio no RabbitMQ.
+- Implementação da Fase 7 do IAM Java: autenticação social Google OAuth2/OpenID Connect e autenticação em dois fatores via TOTP.
+- Implementação da Fase 8 do IAM Java: controladores REST canônicos, regras de autorização e respostas globais de erro.
+- Implementação da Fase 9 do IAM Java: containerização multi-stage, integração no Docker Compose e testes ponta a ponta com Testcontainers.
+- Auditoria e conclusão técnica da Task #20 do IAM: validação dos controladores REST, autorizações e contrato global de erros.
 
 ---
 
@@ -183,6 +273,53 @@ Dia focado no avanço da camada de persistência e segurança do ecossistema Jav
   - Proteção contra ciclos de serialização das relações bidirecionais com `@JsonIgnore`.
   - Criação de `UserRepository`, `RefreshTokenRepository`, `PasswordResetRepository` e `OAuthAccountRepository`, incluindo busca case-insensitive por email, consultas de tokens ativos e revogação global de refresh tokens.
   - Inclusão do teste de integração `IamPersistenceIntegrationTest`, que valida migração Flyway, mapeamentos Hibernate e consultas de todos os repositórios em PostgreSQL 15 via Testcontainers.
+- **DTOs e Validações do IAM — Fase 4 (`backend-java/iam-service`)**:
+  - Criação dos 15 DTOs como Java Records imutáveis para autenticação, redefinição de senha, gestão de usuários, cadastro de paciente e listagem de médicos.
+  - Aplicação de validações Jakarta para e-mail, campos obrigatórios, tamanho mínimo de senha, CPF, papel de usuário e motivo de desativação, com mensagens em português.
+  - Compatibilização dos contratos JSON com FastAPI e frontend React por meio de `@JsonProperty`, preservando campos como `access_token`, `refresh_token`, `token_type`, `expires_in`, `full_name` e `is_active`.
+  - Implementação de `UserResponseDTO.fromEntity(User)` e cópias defensivas para listas de respostas paginadas.
+  - Inclusão do teste `DtoContractTest` para validar violações Jakarta e a serialização dos tokens em `snake_case`.
+- **Segurança e Revogação de Tokens do IAM — Fase 5 (`backend-java/iam-service`)**:
+  - Implementação de `JwtTokenProvider` com emissão e validação de JWTs HS256 compatíveis com os claims compartilhados no ecossistema Python: `sub`, `role`, `email`, `type`, `iat`, `exp` e `jti` para refresh tokens.
+  - Reforço de `JwtProperties` para exigir chave JWT de ao menos 256 bits e uso exclusivo do algoritmo HS256.
+  - Implementação de `TokenBlacklistService`, que armazena tokens revogados no Redis sob a chave `blacklist:<token>` com TTL igual ao tempo restante de expiração.
+  - Implementação de `JwtAuthenticationFilter`, responsável por extrair o token Bearer, consultar a blacklist, validar a assinatura e popular o `SecurityContext` com a autoridade `ROLE_<papel>`.
+  - Criação da `SecurityConfig` stateless, com CSRF desabilitado, BCrypt de custo 12, rotas públicas definidas e filtro JWT posicionado antes de `UsernamePasswordAuthenticationFilter`.
+  - Prevenção de execução duplicada do filtro JWT por meio do desativamento de seu registro automático como filtro de servlet.
+  - Inclusão de testes para tokens, blacklist Redis, filtro de autenticação e BCrypt.
+- **Serviços de Negócio e Eventos do IAM — Fase 6 (`backend-java/iam-service`)**:
+  - Implementação de `AuthService` com autenticação por senha, validação de TOTP quando o 2FA está habilitado, emissão de JWTs, persistência do hash SHA-256 de refresh tokens, rotação de refresh token, logout com blacklist Redis, alteração de senha e redefinição de senha com validade de duas horas.
+  - Implementação de `UserService` para criação de usuários e pacientes, validação de unicidade de e-mail/CPF, listagem paginada, consulta individual, listagem de médicos e desativação de conta com revogação em lote dos refresh tokens.
+  - Criação dos eventos imutáveis `UserCreatedEvent` e `UserDeactivatedEvent` e do `IamEventPublisher`, que publica mensagens JSON na exchange configurável `iam.events`, nas routing keys `user.created` e `user.deactivated`.
+  - Inclusão de headers de rastreabilidade `eventId`, `eventType`, `occurredAt` e `correlationId` nas mensagens RabbitMQ.
+  - Ampliação de `UserRepository` para paginação por status e de `JwtTokenProvider` para identificar refresh tokens.
+  - Inclusão de testes unitários para rotação de refresh token, desativação e revogação em lote, além dos headers dos eventos RabbitMQ.
+- **Google OAuth2 e Autenticação em Dois Fatores — Fase 7 (`backend-java/iam-service`)**:
+  - Implementação de `TwoFactorService` com geração de segredos Base32, URI compatível com aplicativos autenticadores no formato `otpauth://` e validação de códigos TOTP de seis dígitos por meio do Google Authenticator.
+  - Criação de `OAuthConfig` para leitura de `app.oauth2.google.client-id`, `client-secret` e `redirect-uri`, com valores via variáveis de ambiente e indisponibilidade segura quando o provedor não estiver configurado.
+  - Criação do fluxo OAuth2 Google com redirecionamento para consentimento, escopos `openid email profile`, estado criptograficamente aleatório com uso único e TTL de dez minutos no Redis, troca do código de autorização e consulta do perfil OpenID Connect.
+  - Implementação do provisionamento automático de usuários sociais como `PATIENT`, armazenamento de senha aleatória protegida com BCrypt, vínculo na tabela `oauth_accounts` e emissão do par de JWTs interno.
+  - Criação de `OAuthController` para os endpoints de início, callback e consulta de contas vinculadas; o endpoint de contas foi mantido autenticado por JWT, enquanto apenas o início e o callback do Google são públicos.
+  - Inclusão de teste automatizado que confirma geração de segredo, URI QR e validação de código TOTP sincronizado.
+- **Controladores REST e Tratamento Global de Erros — Fase 8 (`backend-java/iam-service`)**:
+  - Criação de `AuthController` com os fluxos de login, refresh, logout, alteração e recuperação de senha e autocadastro de paciente; o logout normaliza o token Bearer antes da revogação no Redis.
+  - Criação de `UserController` para listagem, criação, perfil próprio, médicos ativos, atualização cadastral, mudança de papel, desativação e reativação de contas.
+  - Habilitação da segurança de métodos e aplicação de `@PreAuthorize` para papéis ADMIN e ATTENDANT, incluindo a regra de que atendentes podem criar somente pacientes.
+  - Criação do endpoint público `GET /healthz`, retornando o estado e o identificador do serviço.
+  - Implementação de `ApiErrorResponse` e `GlobalExceptionHandler` para respostas consistentes de validação, credenciais, acesso, recurso inexistente, conflito e falha interna.
+  - Inclusão das exceções de domínio `BadCredentialsException`, `ResourceNotFoundException` e `ConflictException`; as consultas e operações de usuário passaram a utilizá-las.
+  - Correção do filtro isolado por papel na listagem de usuários, anteriormente pendente na Fase 6.
+- **Containerização e Testes de Integração — Fase 9 (`backend-java/iam-service`)**:
+  - Criação do Dockerfile multi-stage com Maven e Eclipse Temurin 21 Alpine, execução como usuário não-root, healthcheck em `/healthz` e limites de memória JVM apropriados para containers.
+  - Atualização do serviço `iam-service` no Docker Compose para construir o módulo Java, expor `8001:8000` e receber configurações Spring de PostgreSQL, Redis, RabbitMQ e JWT.
+  - Criação de `AuthIntegrationTest` com PostgreSQL 15 e Redis 7 reais via Testcontainers e chamadas HTTP com MockMvc; a mensageria foi isolada para manter banco e cache integralmente reais.
+  - Cobertura dos fluxos de login do administrador, cadastro de paciente, blacklist Redis no logout, rejeição de token revogado e bloqueio de login após desativação.
+- **Auditoria da Task #20 — Controladores e Erros HTTP (`backend-java/iam-service`)**:
+  - Auditoria dos controladores de autenticação e usuários contra o planejamento de endpoints, confirmando os métodos, paths, regras de papel e respostas previstos.
+  - Identificação de lacuna no contrato de erros: respostas 401 do filtro JWT e respostas 401/403 emitidas pela cadeia do Spring Security não eram serializadas por `ApiErrorResponse`.
+  - Criação de `SecurityErrorResponder` e configuração de `AuthenticationEntryPoint` e `AccessDeniedHandler` para padronizar erros da camada de segurança como JSON, sem depender exclusivamente do `@RestControllerAdvice`.
+  - Inclusão do tratamento de corpo JSON malformado como HTTP 400 no `GlobalExceptionHandler`.
+  - Ampliação do teste do filtro JWT para validar status, tipo de conteúdo e contrato JSON de erro.
 
 ---
 
@@ -191,6 +328,13 @@ Dia focado no avanço da camada de persistência e segurança do ecossistema Jav
 - A dependência `org.testcontainers:redis` não possui módulo publicado compatível no BOM utilizado, resultando em erro de versão ausente durante a resolução do Maven. Foi substituída por `org.testcontainers:testcontainers`, que permite o uso do Redis com `GenericContainer` nos testes.
 - O Maven fornecido pela IDE foi iniciado com Java 17, o que causou o erro `release version 21 not supported`. A compilação foi reexecutada com `JAVA_HOME` apontando para o Corretto Java 21 e finalizada com sucesso.
 - A primeira execução do teste de integração usou Testcontainers 1.20.2, cujo cliente Docker API 1.32 foi recusado pelo daemon local, que exige API 1.40 ou superior. A versão foi atualizada para 1.21.4, compatível com engines Docker recentes, e a suíte passou sem erros.
+- O teste inicial do custo BCrypt usava o método inexistente `getStrength()` nesta versão de Spring Security. A verificação foi corrigida para validar o prefixo do hash BCrypt (`$2…$12$`), sem impacto na implementação de produção.
+- Na revisão funcional da Fase 6, foi identificada uma pendência no fluxo de recuperação de senha: `forgotPassword` persiste somente o hash e descarta o token em texto, sem ainda encaminhá-lo a um serviço de e-mail ou notificação. Dessa forma, o token não chega ao usuário para uso em `resetPassword`.
+- A revisão também identificou que `listUsers` não aplica o filtro de papel quando `role` é informado sem `isActive`; essa combinação precisa ser tratada antes da disponibilização do endpoint.
+- Nenhum erro de compilação ou de teste foi encontrado durante a implementação da Fase 7. A autenticação real com Google não foi executada localmente, pois requer credenciais OAuth2 e URIs de redirecionamento cadastradas no console do provedor.
+- Nenhum erro de compilação ou teste foi encontrado na Fase 8; os avisos do agente Mockito, Testcontainers e dialeto PostgreSQL não interromperam a execução.
+- A construção da imagem Docker foi iniciada e o Dockerfile não apresentou erro de sintaxe, mas o download inicial das dependências Maven excedeu a janela de execução disponível antes da conclusão. A validação completa da imagem e de seu tamanho permanece pendente.
+- A primeira compilação após a inclusão do respondedor de erros revelou uma dependência não declarada na assinatura de `SecurityFilterChain`; o parâmetro foi incluído e a suíte completa voltou a passar.
 
 ---
 
@@ -202,12 +346,20 @@ Dia focado no avanço da camada de persistência e segurança do ecossistema Jav
 - Resolução das dependências e compilação limpa do `iam-service` com `mvn clean compile`, Java 21 e Spring Boot 3.3.4.
 - Carregamento das configurações de PostgreSQL, Redis, RabbitMQ e JWT a partir de variáveis de ambiente com valores padrão seguros para desenvolvimento local.
 - Teste de integração da persistência concluído com 1 teste executado, 0 falhas e 0 erros; Flyway, enum nativo PostgreSQL, Hibernate e os quatro repositórios foram validados em conjunto.
+- Testes dos contratos dos DTOs concluídos com 2 casos executados, 0 falhas e 0 erros, confirmando as validações e a paridade dos nomes JSON dos tokens.
+- Testes de segurança concluídos com 7 casos executados, 0 falhas e 0 erros, cobrindo emissão e validação de JWT, rejeição de assinatura alterada, autoridade por papel, revogação no Redis e BCrypt com custo 12.
+- Suíte do IAM ampliada e validada com 13 testes executados, 0 falhas e 0 erros, incluindo PostgreSQL 15 via Testcontainers, serviços de autenticação/usuário e mensageria RabbitMQ simulada.
+- A desativação de usuário atualiza o status, registra data e motivo, revoga tokens ativos em lote e publica o evento de domínio correspondente dentro da mesma unidade transacional de serviço.
+- A suíte do IAM passou a ter 14 testes, todos concluídos com sucesso, cobrindo também o fluxo local de TOTP.
+- A suíte completa do IAM continuou aprovada após os controladores e o tratamento de exceções, com 14 testes executados, 0 falhas e 0 erros.
+- Os cinco testes de integração da Fase 9 passaram sem falhas, exercitando PostgreSQL e Redis em containers descartáveis; a configuração do Docker Compose foi validada com `docker compose config --quiet`.
+- A auditoria da Task #20 foi validada com `mvn clean test`: 19 testes executados, sem falhas ou erros, incluindo Testcontainers de PostgreSQL e Redis.
 
 ---
 
 ### 📝 Resumo do Dia
 
-Finalização da camada de persistência e entidades de domínio do `patient-clinical-service` em Java. Foram criadas mais de 20 classes de modelo (incluindo entidades de negócio, enums e tabelas de histórico) e mais de 15 interfaces de repositório Spring Data JPA, cobrindo todo o bounded context de pacientes, consultas, prontuários, agendamentos e prescrições. No IAM Java, foram concluídas as Fases 1 e 3, disponibilizando a base técnica, o modelo de persistência, os repositórios e testes de integração com PostgreSQL para sustentar as próximas fases de autenticação e endpoints.
+Finalização da camada de persistência e entidades de domínio do `patient-clinical-service` em Java. Foram criadas mais de 20 classes de modelo (incluindo entidades de negócio, enums e tabelas de histórico) e mais de 15 interfaces de repositório Spring Data JPA, cobrindo todo o bounded context de pacientes, consultas, prontuários, agendamentos e prescrições. No IAM Java, foram concluídas as Fases 1 a 9 e a auditoria da Task #20, incorporando serviços transacionais, eventos RabbitMQ, OAuth2, TOTP, endpoints REST, erros HTTP padronizados também na cadeia de segurança, Docker e testes ponta a ponta. Permanece a pendência da Fase 6 de encaminhar com segurança o token de recuperação de senha. A construção integral da imagem Docker deve ser repetida em ambiente com tempo suficiente para o download inicial das dependências Maven.
 
 ---
 

@@ -85,7 +85,7 @@ public class PatientDocument {
     @Column(name = "deleted_at")
     private Instant deletedAt;
 
-    protected PatientDocument() {
+    public PatientDocument() {
     }
 
     @jakarta.persistence.PrePersist

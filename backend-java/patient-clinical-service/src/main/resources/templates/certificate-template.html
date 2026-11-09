@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"/><style>
+@page { size: A4; margin: 30px; } body { font-family: Helvetica, Arial, sans-serif; color: #243447; font-size: 12px; }
+header { border-bottom: 3px solid #176b87; padding-bottom: 14px; } h1 { color: #176b87; font-size: 22px; }
+.field { margin: 16px 0; } .label { color: #657786; font-size: 9px; text-transform: uppercase; }
+.signature { margin-top: 80px; border-top: 1px solid #243447; width: 260px; padding-top: 5px; }
+footer { margin-top: 35px; border-top: 1px solid #d8e3e8; padding-top: 8px; color: #657786; font-size: 8px; }
+</style></head>
+<body><header><h1>Atestado Médico</h1><p th:text="${issuedAt}">2026-01-01</p></header>
+<p>Atesto, para os devidos fins, que o paciente <strong th:text="${patient.fullName}">Paciente</strong> necessita de afastamento.</p>
+<div class="field"><div class="label">Dias de afastamento</div><div th:text="${certificate.daysOff}">1</div></div>
+<div class="field"><div class="label">Início</div><div th:text="${certificate.startDate}">2026-01-01</div></div>
+<div class="field"><div class="label">CID</div><div th:text="${certificate.cid}">-</div></div>
+<div class="field"><div class="label">Motivo</div><div th:text="${certificate.reason}">-</div></div>
+<div class="field" th:if="${certificate.notes != null}"><div class="label">Observações</div><div th:text="${certificate.notes}">-</div></div>
+<div class="signature">Médico responsável</div>
+<footer>Documento eletrônico com autenticidade verificável por assinatura digital.</footer>
+</body></html>
