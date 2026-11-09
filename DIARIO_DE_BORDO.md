@@ -616,6 +616,49 @@ O Gateway Java foi preparado para execução em container não-root com imagem m
 
 ---
 
+## 2026-11-09 — Validação de Integração e Imagem Docker do Gateway
+
+### 📋 Implementação Proposta
+
+- Completar a validação automatizada da paridade do Gateway Java, instalar no projeto as dependências de teste Python e confirmar a construção da imagem Docker.
+
+---
+
+### ✅ O que foi Implementado
+
+- Criação de `backend/gateway/requirements-dev.txt`, incluindo `pytest==8.4.2` junto às dependências de runtime, sem adicionar ferramentas de teste à imagem de produção.
+- Provisionamento de Python 3.12.16 com `uv` em cache local e instalação das dependências-dev em um virtualenv temporário fora do repositório.
+- Inclusão de `MockWebServer` e Testcontainers Redis no POM de teste do Gateway.
+- Criação de `GatewayRoutingIntegrationTest` com `@SpringBootTest(RANDOM_PORT)` e `WebTestClient`, cobrindo health local/agregado, aliases, login público, bloqueio sem token e headers de identidade encaminhados.
+- Criação de `GatewaySecurityAndResilienceTest`, cobrindo blacklist Redis, limite anônimo HTTP 429 e fallback do Circuit Breaker após respostas HTTP 503; os 5xx foram configurados como falhas contabilizadas pelo breaker.
+- Construção bem-sucedida da imagem `backend-gateway:latest`; a inspeção confirmou usuário `gatewayuser`, entrypoint Java, porta 8000 e healthcheck interno.
+- Validação do Compose com `docker compose -f backend/docker-compose.yml config --quiet`.
+
+---
+
+### ❌ O que deu Erro
+
+- A instalação inicial das dependências Python no sistema falhou porque o ambiente fornecia Python 3.14 sem FastAPI/HTTPX, enquanto o backend documenta Python 3.12; `pydantic-core` da versão fixada não compilou nesse Python. A instalação foi concluída em ambiente virtual isolado com Python 3.12.16.
+- A primeira execução dos testes Testcontainers foi bloqueada pelo reset de conexão com o Docker Hub durante o download das imagens Ryuk/Redis. Em uma execução posterior, o pull foi concluído e a suíte de integração passou.
+- O mock inicial de desconexão do downstream retornou HTTP 200 no teste do breaker. O cenário foi tornado determinístico com respostas 503 e configuração explícita dos status 5xx como falhas do Circuit Breaker.
+
+---
+
+### 🟢 O que Funcionou
+
+- Suíte Maven completa concluída com 30 testes, 0 falhas e 0 erros, incluindo Testcontainers Redis e os dois testes de integração.
+- Suíte pytest legada em `backend/gateway/tests` concluída com 5 testes aprovados. Foram observados apenas warnings de depreciação do FastAPI/Starlette.
+- Build da imagem multi-stage e validação da configuração Docker Compose concluídos com sucesso.
+- Nenhum arquivo do frontend foi modificado.
+
+---
+
+### 📝 Resumo do Dia
+
+A validação de integração do novo Gateway Java foi concluída com 30 testes Maven e 5 testes pytest do gateway legado aprovados. A imagem Docker multi-stage foi construída e inspecionada com sucesso, e o Compose foi validado. O stack completo não foi iniciado, portanto a comunicação com todos os microsserviços reais ainda não foi exercitada em execução conjunta.
+
+---
+
 <!-- TEMPLATE PARA NOVO DIA — Copie o bloco abaixo ao iniciar uma nova entrada -->
 
 <!--
