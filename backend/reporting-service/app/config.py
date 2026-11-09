@@ -22,8 +22,8 @@ class Settings(BaseSettings):
     S3_BUCKET_REPORTS: str = "reports"
 
     IAM_DB_URL: str = "postgresql://iam:iam_pass@db-iam:5432/iam_db"
-    PATIENT_DB_URL: str = "postgresql://patient:patient_pass@db-patient:5432/patient_db"
-    CLINICAL_DB_URL: str = "postgresql://clinical:clinical_pass@db-clinical:5432/clinical_db"
+    PATIENT_DB_URL: str = "postgresql://clinical:clinical_pass@db-patient-clinical:5432/patient_clinical_db"
+    CLINICAL_DB_URL: str = "postgresql://clinical:clinical_pass@db-patient-clinical:5432/patient_clinical_db"
 
     # --- New: Webhook & Scheduling ---
     WEBHOOK_SIGNING_SECRET: str = "reporting-webhook-secret-change-me"

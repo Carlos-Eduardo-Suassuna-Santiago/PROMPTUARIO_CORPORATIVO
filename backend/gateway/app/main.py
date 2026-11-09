@@ -36,8 +36,7 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
 
     IAM_SERVICE_URL: str = "http://localhost:8001"
-    PATIENT_SERVICE_URL: str = "http://localhost:8002"
-    CLINICAL_SERVICE_URL: str = "http://localhost:8003"
+    PATIENT_CLINICAL_SERVICE_URL: str = "http://localhost:8002"
     AI_SERVICE_URL: str = "http://localhost:8004"
     REPORTING_SERVICE_URL: str = "http://localhost:8005"
     RABBITMQ_MANAGEMENT_URL: str = "http://guest:guest@localhost:15672"
@@ -77,32 +76,32 @@ class CircuitOpenError(RuntimeError):
 # ─── Route table ─────────────────────────────────────────────────────────────
 # Maps path prefix → (service_url, requires_auth)
 
-ROUTE_TABLE: list[tuple[str, str, bool]] = [
-    # Observability — public (gateway /metrics served locally via setup_observability)
-    ("/metrics", settings.IAM_SERVICE_URL, False),
-    # Auth routes — public
-    ("/api/v1/auth/login",   settings.IAM_SERVICE_URL,       False),
-    ("/api/v1/auth/refresh", settings.IAM_SERVICE_URL,       False),
-    ("/api/v1/auth/forgot-password", settings.IAM_SERVICE_URL, False),
-    ("/api/v1/auth/reset-password",  settings.IAM_SERVICE_URL, False),
-    ("/api/v1/auth/register-patient", settings.IAM_SERVICE_URL, False),
-    # OAuth routes — public (callbacks are handled by the provider redirect)
-    ("/api/v1/auth/oauth", settings.IAM_SERVICE_URL, False),
-    # All other routes — require JWT
-    ("/api/v1/auth", settings.IAM_SERVICE_URL, True),
-    ("/api/v1/users", settings.IAM_SERVICE_URL, True),
-    ("/api/v1/patients", settings.PATIENT_SERVICE_URL, True),
-    ("/api/v1/appointments", settings.CLINICAL_SERVICE_URL, True),
-    ("/api/v1/schedules", settings.CLINICAL_SERVICE_URL, True),
-    ("/api/v1/records", settings.CLINICAL_SERVICE_URL, True),
-    ("/api/v1/ai/debug", settings.AI_SERVICE_URL, False),
-    ("/api/v1/ai", settings.AI_SERVICE_URL, True),
-    ("/api/v1/reports", settings.REPORTING_SERVICE_URL, True),
-    ("/api/v1/admin", settings.REPORTING_SERVICE_URL, True),
-    ("/api/v1/audit", settings.REPORTING_SERVICE_URL, True),
-]
+def _build_route_table() -> list[tuple[str, str, bool]]:
+    svc_url = settings.PATIENT_CLINICAL_SERVICE_URL
+    return [
+        ("/metrics", settings.IAM_SERVICE_URL, False),
+        ("/api/v1/auth/login", settings.IAM_SERVICE_URL, False),
+        ("/api/v1/auth/refresh", settings.IAM_SERVICE_URL, False),
+        ("/api/v1/auth/forgot-password", settings.IAM_SERVICE_URL, False),
+        ("/api/v1/auth/reset-password", settings.IAM_SERVICE_URL, False),
+        ("/api/v1/auth/register-patient", settings.IAM_SERVICE_URL, False),
+        ("/api/v1/auth/oauth", settings.IAM_SERVICE_URL, False),
+        ("/api/v1/auth", settings.IAM_SERVICE_URL, True),
+        ("/api/v1/users", settings.IAM_SERVICE_URL, True),
+        ("/api/v1/patients", svc_url, True),
+        ("/api/v1/appointments", svc_url, True),
+        ("/api/v1/schedules", svc_url, True),
+        ("/api/v1/records", svc_url, True),
+        ("/api/v1/ai/debug", settings.AI_SERVICE_URL, False),
+        ("/api/v1/ai", settings.AI_SERVICE_URL, True),
+        ("/api/v1/reports", settings.REPORTING_SERVICE_URL, True),
+        ("/api/v1/admin", settings.REPORTING_SERVICE_URL, True),
+        ("/api/v1/audit", settings.REPORTING_SERVICE_URL, True),
+    ]
 
-# ─── App ─────────────────────────────────────────────────────────────────────
+
+
+ROUTE_TABLE = _build_route_table()
 
 app = FastAPI(
     title="PROMPTUARIO — API Gateway",
@@ -172,8 +171,7 @@ async def services_health(request: Request):
     """Aggregate health check across all downstream services."""
     services = {
         "iam": settings.IAM_SERVICE_URL,
-        "patient": settings.PATIENT_SERVICE_URL,
-        "clinical": settings.CLINICAL_SERVICE_URL,
+        "patient_clinical": settings.PATIENT_CLINICAL_SERVICE_URL,
         "ai": settings.AI_SERVICE_URL,
         "reporting": settings.REPORTING_SERVICE_URL,
     }
@@ -185,6 +183,10 @@ async def services_health(request: Request):
             results[name] = "ok" if resp.status_code == 200 else "degraded"
         except Exception:
             results[name] = "unreachable"
+
+    # Compatibility aliases for monitoring tools expecting legacy service keys
+    results["patient"] = results.get("patient_clinical", "unreachable")
+    results["clinical"] = results.get("patient_clinical", "unreachable")
 
     overall = "ok" if all(v == "ok" for v in results.values()) else "degraded"
     return {"status": overall, "services": results}

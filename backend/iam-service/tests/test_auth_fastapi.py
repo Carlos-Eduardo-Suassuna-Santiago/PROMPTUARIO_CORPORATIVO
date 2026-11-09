@@ -52,12 +52,12 @@ async def app_client(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(app_main, "build_engine", _test_build_engine)
     monkeypatch.setattr(app_main.aioredis, "from_url", _fake_from_url)
 
-    await app_main.app.router.startup()
+    await app_main.startup()
     try:
         async with AsyncClient(transport=ASGITransport(app=app_main.app), base_url="http://test") as client:
             yield client
     finally:
-        await app_main.app.router.shutdown()
+        await app_main.shutdown()
 
 
 @pytest.mark.anyio

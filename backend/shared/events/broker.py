@@ -74,6 +74,8 @@ class EventConsumer:
         self._connection: AbstractRobustConnection | None = None
         self._channel = None
         self._handlers: dict[str, tuple[str, Callable]] = {}
+        self._processed_message_ids: set[str] = set()
+        self._processing_message_ids: set[str] = set()
 
     async def connect(self) -> None:
         backoff = 1.0
@@ -124,11 +126,21 @@ class EventConsumer:
             async def _make_callback(h: Callable):
                 async def callback(message: aio_pika.IncomingMessage):
                     async with message.process(requeue=True):
+                        message_id = message.message_id
+                        if message_id and (message_id in self._processed_message_ids or message_id in self._processing_message_ids):
+                            return
+                        if message_id:
+                            self._processing_message_ids.add(message_id)
                         try:
                             await h(message.body)
+                            if message_id:
+                                self._processed_message_ids.add(message_id)
                         except Exception as e:
                             logger.error("Handler error for %s: %s", routing_key, e)
                             raise
+                        finally:
+                            if message_id:
+                                self._processing_message_ids.discard(message_id)
                 return callback
 
             await queue.consume(await _make_callback(handler))

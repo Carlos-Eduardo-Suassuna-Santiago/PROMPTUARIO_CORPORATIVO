@@ -8,7 +8,7 @@ from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
-from gateway.app.main import app
+from gateway.app.main import _build_route_table, app, settings
 
 
 class FakeRedis:
@@ -39,14 +39,20 @@ class FakeRedis:
 
 @pytest.fixture
 def client():
-    app.state.redis = FakeRedis()
-    app.state.http_client = httpx.AsyncClient(
+    fake_redis = FakeRedis()
+    mock_http = httpx.AsyncClient(
         transport=httpx.MockTransport(lambda request: httpx.Response(200, json={"ok": True}))
     )
-    app.state.circuit_breakers = {}
-    app.state.circuit_breaker_lock = asyncio.Lock()
-    with TestClient(app) as test_client:
-        yield test_client
+    with patch("gateway.app.main.aioredis.from_url", new=AsyncMock(return_value=fake_redis)), patch(
+        "gateway.app.main.httpx.AsyncClient", return_value=mock_http
+    ):
+        with TestClient(app, raise_server_exceptions=False) as test_client:
+            # Garante isolamento mesmo se o lifespan real trocar os objetos.
+            app.state.redis = fake_redis
+            app.state.http_client = mock_http
+            app.state.circuit_breakers = {}
+            app.state.circuit_breaker_lock = asyncio.Lock()
+            yield test_client
 
 
 def test_cacheable_route_returns_cached_response(client):
@@ -84,7 +90,7 @@ def test_api_key_rate_limit_is_enforced(client):
 
     with patch("gateway.app.main.decode_token", return_value=SimpleNamespace(sub="user-1", role="ADMIN", email="admin@example.com")):
         with patch("gateway.app.main._check_rate_limit", new=AsyncMock(side_effect=rate_limited)):
-            response = client.get("/api/v1/patients/health", headers={"X-Api-Key": "demo-key"})
+            response = client.get("/api/v1/patients/health", headers={"X-Api-Key": "demo-key", "Authorization": "Bearer test"})
 
     assert response.status_code == 429
 
@@ -105,3 +111,13 @@ def test_gzip_response_is_served_when_requested(client):
 
     assert response.status_code == 200
     assert "gzip" in response.headers.get("content-encoding", "")
+
+
+def test_unified_routes_use_patient_clinical_service_targets():
+    with patch.object(settings, "PATIENT_CLINICAL_SERVICE_URL", "http://patient-clinical:8000"):
+        routes = dict((prefix, target) for prefix, target, _ in _build_route_table())
+
+    assert routes["/api/v1/patients"] == "http://patient-clinical:8000"
+    assert routes["/api/v1/appointments"] == "http://patient-clinical:8000"
+    assert routes["/api/v1/schedules"] == "http://patient-clinical:8000"
+    assert routes["/api/v1/records"] == "http://patient-clinical:8000"
