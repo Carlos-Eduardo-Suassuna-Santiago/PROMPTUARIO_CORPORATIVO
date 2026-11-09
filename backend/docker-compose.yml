@@ -317,28 +317,33 @@ services:
   # Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ API GATEWAY Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   gateway:
     build:
-      context: .
-      dockerfile: gateway/Dockerfile
+      context: ../backend-java/gateway
+      dockerfile: Dockerfile
+    container_name: api-gateway
     restart: unless-stopped
-    environment:
-      IAM_SERVICE_URL: http://iam-service:8000
-      PATIENT_CLINICAL_SERVICE_URL: ${PATIENT_CLINICAL_SERVICE_URL:-http://patient-clinical-service:8000}
-      AI_SERVICE_URL: http://ai-service:8000
-      REPORTING_SERVICE_URL: http://reporting-service:8000
-      RABBITMQ_MANAGEMENT_URL: http://guest:guest@rabbitmq:15672
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-super-secret-change-in-production-32chars}
-      JWT_ALGORITHM: HS256
-      REDIS_URL: redis://redis:6379/0
-      LOG_LEVEL: INFO
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
-    depends_on:
-      - iam-service
-      - patient-clinical-service
-      - ai-service
-      - reporting-service
-    networks: [ backend ]
     ports:
       - "8000:8000"
+    environment:
+      SERVER_PORT: 8000
+      IAM_SERVICE_URL: http://iam-service:8000
+      PATIENT_CLINICAL_SERVICE_URL: http://patient-clinical-service:8000
+      AI_SERVICE_URL: http://ai-service:8000
+      REPORTING_SERVICE_URL: http://reporting-service:8000
+      RABBITMQ_MANAGEMENT_URL: "http://promptuario:${RABBITMQ_PASSWORD:-promptuario_pass}@rabbitmq:15672"
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-super-secret-change-in-production-32chars}
+      FRONTEND_URL: "${FRONTEND_URL:-*}"
+      SPRING_PROFILES_ACTIVE: prod
+    depends_on:
+      redis:
+        condition: service_healthy
+      iam-service:
+        condition: service_healthy
+      patient-clinical-service:
+        condition: service_healthy
+    networks:
+      - backend
 
   # Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ EXPORTERS Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   # RabbitMQ natively exposes Prometheus metrics on port 15692
