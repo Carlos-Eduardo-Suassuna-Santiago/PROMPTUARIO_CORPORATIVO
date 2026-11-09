@@ -86,7 +86,7 @@ class GatewayRoutesConfigTest {
                                             assertThat(routes.get("ai-protected").getFilters()).hasSize(2);
                                             assertThat(routes.get("reporting").getFilters()).hasSize(2);
                                             assertThat(routes.get("iam-metrics").getFilters()).hasSize(1);
-                                        assertThat(routes.get("rabbitmq-ui").getFilters()).hasSize(2);
+                                            assertThat(routes.get("rabbitmq-ui").getFilters()).hasSize(3);
                                 })
                                 .verifyComplete();
         }

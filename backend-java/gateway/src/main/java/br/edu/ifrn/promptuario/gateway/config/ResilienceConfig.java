@@ -19,7 +19,8 @@ public class ResilienceConfig {
             factory.configure(builder -> configuration(builder, Duration.ofSeconds(30)),
                     "patientClinicalCircuitBreaker",
                     "reportingCircuitBreaker",
-                    "iamCircuitBreaker");
+                    "iamCircuitBreaker",
+                    "rabbitmqCircuitBreaker");
             factory.configure(builder -> configuration(builder, Duration.ofSeconds(60)),
                     "aiCircuitBreaker");
         };
