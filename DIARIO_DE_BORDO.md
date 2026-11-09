@@ -11,6 +11,7 @@
 - [2026-11-04](#2026-11-04)
 - [2026-11-05](#2026-11-05)
 - [2026-11-08 — Entrada mais recente](#2026-11-08)
+- [2026-11-09 — Entrada mais recente](#2026-11-09)
 
 ---
 
@@ -142,6 +143,44 @@ _Nenhum erro na migração. A validação inicial do hash BCrypt exigiu ajuste d
 Dia focado no avanço da camada de persistência e segurança do ecossistema Java, estruturando o versionamento Flyway inicial para o `iam-service` e garantindo o provisionamento automático do usuário administrador padrão da aplicação. A migração canônica foi validada em PostgreSQL 15 e está preparada para o mapeamento das entidades JPA nas próximas fases.
 
 ---
+
+---
+
+## 2026-11-09
+
+### 📋 Implementação Proposta
+
+- Avançar na camada HTTP do `patient-clinical-service`, expondo operações de pacientes e dados clínicos por endpoints REST protegidos por papéis.
+- Ampliar a pesquisa paginada de consultas com filtro pelo nome do paciente.
+
+---
+
+### ✅ O que foi Implementado
+
+- Criação de `PatientController` com endpoints para consulta, cadastro e atualização de pacientes, alergias, vacinas, medicamentos, documentos e resumo clínico.
+- Criação de controllers para agendamentos, escalas médicas e prontuários, incluindo operações para prescrições, exames, resultados e atestados.
+- Criação de `HealthController` com endpoint `/healthz`.
+- Aplicação de regras de autorização por papel usando `@PreAuthorize` nos endpoints de negócio.
+- Ampliação da consulta paginada de agendamentos com filtro opcional pelo nome do paciente, aplicado também na consulta de contagem.
+
+---
+
+### ❌ O que deu Erro
+
+- Nenhum erro de execução foi registrado nesta atividade. Compilação e testes não foram executados nesta sessão.
+
+---
+
+### 🟢 O que Funcionou
+
+- Os novos controllers e a alteração do repositório estão presentes no workspace.
+- As alterações do dia permanecem locais e ainda não foram commitadas.
+
+---
+
+### 📝 Resumo do Dia
+
+Avanço da camada REST do `patient-clinical-service`, com endpoints para pacientes, consultas, escalas médicas, prontuários e verificações de saúde. Os endpoints de negócio receberam regras de autorização por papel, e a pesquisa paginada de agendamentos passou a aceitar filtro opcional pelo nome do paciente. O código permanece pendente de compilação, testes e commit.
 
 ---
 
