@@ -21,6 +21,7 @@ public interface AppointmentRepository extends JpaRepository<Appointment, String
               and (:status is null or a.status = :status)
               and (:rangeStart is null or a.scheduledAt >= :rangeStart)
               and (:rangeEnd is null or a.scheduledAt <= :rangeEnd)
+              and (:patientName is null or lower(a.patient.fullName) like lower(concat('%', :patientName, '%')))
             """,
             countQuery = """
             select count(a) from Appointment a
@@ -29,6 +30,7 @@ public interface AppointmentRepository extends JpaRepository<Appointment, String
               and (:status is null or a.status = :status)
               and (:rangeStart is null or a.scheduledAt >= :rangeStart)
               and (:rangeEnd is null or a.scheduledAt <= :rangeEnd)
+              and (:patientName is null or lower(a.patient.fullName) like lower(concat('%', :patientName, '%')))
             """)
     Page<Appointment> searchAppointments(
             @Param("patientId") String patientId,
@@ -36,6 +38,7 @@ public interface AppointmentRepository extends JpaRepository<Appointment, String
             @Param("status") AppointmentStatus status,
             @Param("rangeStart") Instant rangeStart,
             @Param("rangeEnd") Instant rangeEnd,
+            @Param("patientName") String patientName,
             Pageable pageable);
 
     boolean existsByDoctorIdAndScheduledAtAndStatusNot(
