@@ -28,6 +28,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 public class PrescriptionPdfWorker {
@@ -94,7 +95,9 @@ public class PrescriptionPdfWorker {
         prescriptionRepository.save(prescription);
 
         eventPublisher.publish("domain.events", "prescription.generated",
-                new PrescriptionGeneratedEvent(null, prescription.getId(), prescription.getRecord().getId(), patient.getId()));
+                new PrescriptionGeneratedEvent(UUID.randomUUID(), Instant.now(), "PrescriptionGenerated",
+                        UUID.randomUUID().toString(), prescription.getId(), prescription.getRecord().getId(),
+                        patient.getId(), prescription.getDoctorId(), prescription.getMedications(), key));
         log.info("Prescription PDF generated: prescriptionId={}, key={}", prescription.getId(), key);
     }
 

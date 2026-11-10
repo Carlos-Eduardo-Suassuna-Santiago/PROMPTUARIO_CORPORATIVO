@@ -42,6 +42,9 @@ springdoc:
     path: /docs
 
 app:
+  messaging:
+    # Temporary bridge for the Python AI service during the migration.
+    legacy-publish-enabled: ${APP_MESSAGING_LEGACY_PUBLISH_ENABLED:true}
   rabbitmq:
     exchanges:
       domain-events: domain.events
