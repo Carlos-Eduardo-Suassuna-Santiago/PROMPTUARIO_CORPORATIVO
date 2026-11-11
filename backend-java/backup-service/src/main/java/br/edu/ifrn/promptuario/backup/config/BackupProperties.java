@@ -26,6 +26,11 @@ import org.springframework.validation.annotation.Validated;
  * @param encryptionSecret  segredo/chave simétrica usada pela criptografia
  * @param dumpTimeoutSeconds timeout máximo (em segundos) de cada dump antes do
  *                           {@code destroyForcibly()} do processo
+ * @param restoreTimeoutSeconds timeout de segurança (em segundos) de cada
+ *                           restauração; usado também como orçamento de RTO no drill
+ * @param rpoHours          janela de RPO (em horas) usada para atestar a
+ *                           atualidade do artefato no drill de contingência
+ * @param drillCron         expressão cron do drill mensal de contingência
  * @param postgres          conexões dos bancos PostgreSQL
  * @param mongo             conexão do banco MongoDB
  */
@@ -38,6 +43,9 @@ public record BackupProperties(
         boolean encryptionEnabled,
         @NotBlank String encryptionSecret,
         @Min(1) int dumpTimeoutSeconds,
+        @Min(1) int restoreTimeoutSeconds,
+        @Min(1) int rpoHours,
+        @NotBlank String drillCron,
         @NotNull @Valid Postgres postgres,
         @NotNull @Valid Mongo mongo) {
 

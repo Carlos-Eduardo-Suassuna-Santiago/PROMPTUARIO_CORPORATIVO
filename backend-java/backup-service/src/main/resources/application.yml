@@ -30,6 +30,9 @@ promptuario:
     encryption-enabled: "${BACKUP_ENCRYPTION_ENABLED:true}"
     encryption-secret: "${BACKUP_ENCRYPTION_KEY:PROMPTUARIO_AES_256_SECRET_KEY_SAMPLE_32B}"
     dump-timeout-seconds: "${BACKUP_DUMP_TIMEOUT_SECONDS:600}"
+    restore-timeout-seconds: "${BACKUP_RESTORE_TIMEOUT_SECONDS:1800}"
+    rpo-hours: "${BACKUP_RPO_HOURS:24}"
+    drill-cron: "${BACKUP_DRILL_CRON:0 0 4 1 * ?}"
 
     # Topologia unificada pós-Fase 12 (nunca db-patient / db-clinical)
     postgres:
