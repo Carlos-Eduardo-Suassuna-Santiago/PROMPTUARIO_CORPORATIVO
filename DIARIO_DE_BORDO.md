@@ -750,6 +750,50 @@ A correção crítica da Fase B0 foi concluída e validada: o runner de backup d
 
 ---
 
+## 2026-11-11 — Fundação do Backup Service em Java 21 / Spring Boot 3.3 (Fase B1)
+
+### 📋 Implementação Proposta
+
+- Criar a base do microsserviço corporativo `backend-java/backup-service` com Java 21 e Spring Boot 3.3.4, destinado a substituir o runner Python ao final da migração.
+- Configurar o `pom.xml` com as dependências de Web/Actuator, validação, Micrometer/Prometheus, AWS SDK v2 (S3 + Netty NIO), picocli, Jackson JSR-310 e Lombok.
+- Mapear o `application.yml` com porta interna 8000, propriedades `promptuario.backup` (agendamento, retenção, criptografia), a topologia unificada de bancos (`postgres` e `mongo`) conforme a Fase 12 e o storage MinIO em `app.storage.s3`.
+- Implementar os modelos de domínio/enums, as classes de configuração e a classe principal com `@EnableScheduling` e `@EnableAsync`.
+
+---
+
+### ✅ O que foi Implementado
+
+- **`backend-java/backup-service/pom.xml`**: parent `spring-boot-starter-parent:3.3.4`, coordenadas `br.edu.ifrn.promptuario:backup-service`, Java 21, BOM do AWS SDK v2 (`2.25.0`) e dependências `spring-boot-starter-web`, `-validation`, `-actuator`, `micrometer-registry-prometheus`, `software.amazon.awssdk:s3` e `netty-nio-client`, `info.picocli:picocli-spring-boot-starter:4.7.5`, `jackson-datatype-jsr310`, `lombok` (provided) e `spring-boot-starter-test`; build com `spring-boot-maven-plugin` excluindo o Lombok do jar final.
+- **`src/main/resources/application.yml`**: porta `${SERVER_PORT:8000}`; bloco `promptuario.backup` com `schedule-cron` (`0 0 3 * * ?`), `retention-days` (7), `root-dir` (`/var/backups`), `encryption-enabled` e `encryption-secret`; topologia `postgres` (`iam` → `db-iam`/`iam_db`, `patient-clinical` → `db-patient-clinical`/`patient_clinical_db`, `reporting` → `db-reporting`/`reporting_db`) e `mongo` (`db-ai`/`ai_db`); storage em `app.storage.s3` (endpoint MinIO, chaves, bucket `backups`, região `us-east-1`); Actuator expondo `health,info,prometheus` com probes de liveness/readiness.
+- **Modelos de domínio** (`...backup.model`): enums `DatabaseTarget` (IAM_DB, PATIENT_CLINICAL_DB, REPORTING_DB, MONGO_AI_DB, MINIO_BUCKETS), `ExecutionMode` (SCHEDULED, MANUAL, CLI, RESTORE), `BackupKind` (POSTGRES, MONGO) e `BackupStatus` (SUCCESS, PARTIAL, FAILED); `DatabaseBackupResult` (record com fábricas `success`/`failure` e cálculo de megabytes); `BackupManifest` (record imutável com `schemaVersion`, `databases`, `rpoMet` e `retentionUntil`); `BackupJobExecution` (estado mutável do ciclo, com `addResult()` e `finish()` consolidando o status).
+- **Classes de configuração** (`...backup.config`): `BackupProperties` (`@ConfigurationProperties(prefix = "promptuario.backup")` com records aninhados `Postgres`/`Mongo`/`DatabaseConnection`, Bean Validation e o helper `postgresTargets()`); `StorageProperties` (`app.storage.s3`); `AsyncConfig` com `ThreadPoolTaskScheduler` (`backup-sched-`) e `ThreadPoolTaskExecutor` (`backup-dump-`) dedicados.
+- **`BackupServiceApplication`**: `@SpringBootApplication`, `@EnableScheduling`, `@EnableAsync` e `@ConfigurationPropertiesScan`.
+- **`BackupServiceApplicationTests`** (novo): teste de contexto e de binding da topologia unificada, do agendamento/retenção, do MongoDB e do storage S3.
+
+---
+
+### ❌ O que deu Erro
+
+- O primeiro `mvn clean compile` falhou na leitura do POM com `Non-parseable POM ... in comment after two dashes (--) next character must be > not o`: o comentário XML `<!-- CLI robusto (--once, --restore, ...) -->` era inválido, pois XML não permite `--` no interior de comentários. O comentário foi reescrito e a compilação passou.
+- O ambiente não possui Maven instalado no `PATH`; a validação foi feita reutilizando a distribuição já presente em `~/.m2/wrapper/dists` (`apache-maven-3.9.16`), com o `picocli 4.7.5` baixado do Maven Central.
+
+---
+
+### 🟢 O que Funcionou
+
+- `mvn clean compile`: **BUILD SUCCESS** — 11 arquivos-fonte compilados com Java 21.
+- `mvn test`: **Tests run: 4, Failures: 0, Errors: 0** — contexto Spring carregado e topologia unificada vinculada corretamente, sem nenhum host órfão.
+- `mvn package` gerou o jar executável e a aplicação subiu em 2.369s; `/actuator/health` retornou `UP`, `/actuator/prometheus` respondeu **HTTP 200** (a métrica `executor_active_threads{name="backupTaskExecutor"}` confirma o executor dedicado ativo) e foram expostos 3 endpoints sob `/actuator`.
+- Nenhum arquivo do frontend foi modificado e a topologia permanece sem `db-patient`/`db-clinical`.
+
+---
+
+### 📝 Resumo do Dia
+
+Concluída a Fase B1 da migração do backup para Java: a fundação do `backup-service` em Java 21/Spring Boot 3.3.4 foi criada e validada de ponta a ponta (compilação, testes de contexto e execução real com Actuator/Prometheus). A topologia já reflete a unificação da Fase 12, mantendo o alvo único `patient_clinical_db` (`db-patient-clinical`). O serviço está pronto para receber, nas próximas fases, o CLI picocli, os dumpers em stream, a criptografia AES-256-GCM, o upload para o MinIO e a containerização; ainda não foi integrado ao `docker-compose.yml` nem commitado no repositório.
+
+---
+
 <!-- TEMPLATE PARA NOVO DIA — Copie o bloco abaixo ao iniciar uma nova entrada -->
 
 <!--
