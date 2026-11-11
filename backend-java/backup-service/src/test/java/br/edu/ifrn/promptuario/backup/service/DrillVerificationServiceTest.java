@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import br.edu.ifrn.promptuario.backup.config.BackupProperties;
+import br.edu.ifrn.promptuario.backup.metrics.BackupMetricsService;
 import br.edu.ifrn.promptuario.backup.model.DatabaseEndpoint;
 import br.edu.ifrn.promptuario.backup.model.DatabaseTarget;
 import br.edu.ifrn.promptuario.backup.restorer.MongoDatabaseRestorer;
@@ -39,6 +40,7 @@ class DrillVerificationServiceTest {
     private BackupProperties properties;
     private PostgresDatabaseRestorer postgres;
     private MongoDatabaseRestorer mongo;
+    private BackupMetricsService metricsService;
     private SimpleMeterRegistry meterRegistry;
     private DrillVerificationService drill;
 
@@ -48,10 +50,11 @@ class DrillVerificationServiceTest {
         postgres = mock(PostgresDatabaseRestorer.class);
         mongo = mock(MongoDatabaseRestorer.class);
         meterRegistry = new SimpleMeterRegistry();
+        metricsService = new BackupMetricsService(meterRegistry);
         RestoreAuditService auditService = new RestoreAuditService(
                 properties, new ObjectMapper().registerModule(new JavaTimeModule()));
         drill = new DrillVerificationService(
-                properties, auditService, meterRegistry,
+                properties, auditService, metricsService,
                 new ObjectMapper().registerModule(new JavaTimeModule()), postgres, mongo);
     }
 
@@ -97,9 +100,9 @@ class DrillVerificationServiceTest {
         assertThat(captor.getValue().dbname()).isEqualTo(PATIENT_DB + DrillVerificationService.DRILL_DB_SUFFIX);
         assertThat(captor.getValue().dbname()).isNotEqualTo(PATIENT_DB);
 
-        assertThat(meterRegistry.counter("backup_restore_drill_total",
-                "target", "PATIENT_CLINICAL_DB", "outcome", "success", "rpo", "met").count()).isEqualTo(1.0d);
-        assertThat(meterRegistry.get("backup_restore_drill_status")
+        assertThat(meterRegistry.counter(BackupMetricsService.METRIC_DRILL_TOTAL,
+                "target", "PATIENT_CLINICAL_DB", "status", "success", "rpo", "met").count()).isEqualTo(1.0d);
+        assertThat(meterRegistry.get(BackupMetricsService.METRIC_DRILL_STATUS)
                 .tag("target", "PATIENT_CLINICAL_DB").gauge().value()).isEqualTo(1.0d);
     }
 
@@ -138,7 +141,7 @@ class DrillVerificationServiceTest {
         assertThat(result.success()).isFalse();
         assertThat(result.rtoMet()).isFalse();
         assertThat(result.message()).contains("psql falhou");
-        assertThat(meterRegistry.get("backup_restore_drill_status")
+        assertThat(meterRegistry.get(BackupMetricsService.METRIC_DRILL_STATUS)
                 .tag("target", "PATIENT_CLINICAL_DB").gauge().value()).isEqualTo(0.0d);
     }
 
