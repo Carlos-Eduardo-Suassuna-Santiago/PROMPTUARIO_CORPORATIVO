@@ -10,8 +10,9 @@
 - [2026-11-03](#2026-11-03)
 - [2026-11-04](#2026-11-04)
 - [2026-11-05](#2026-11-05)
-- [2026-11-08 — Entrada mais recente](#2026-11-08)
-- [2026-11-09 — Entrada mais recente](#2026-11-09)
+- [2026-11-08](#2026-11-08)
+- [2026-11-09](#2026-11-09)
+- [2026-11-11 — Entrada mais recente](#2026-11-11)
 
 ---
 
@@ -656,6 +657,57 @@ O Gateway Java foi preparado para execução em container não-root com imagem m
 ### 📝 Resumo do Dia
 
 A validação de integração do novo Gateway Java foi concluída com 30 testes Maven e 5 testes pytest do gateway legado aprovados. A imagem Docker multi-stage foi construída e inspecionada com sucesso, e o Compose foi validado. O stack completo não foi iniciado, portanto a comunicação com todos os microsserviços reais ainda não foi exercitada em execução conjunta.
+
+---
+
+## 2026-11-11 — Correção Crítica do Serviço de Backup (Fase B0 — Topologia Unificada)
+
+### 📋 Implementação Proposta
+
+- Corrigir a dívida técnica imediata do serviço de backup em Python (`backend/backup/backup_runner.py`) após a Fase 12: remover os hosts órfãos `db-patient` e `db-clinical` e passar a dumpar o banco unificado `patient_clinical_db` (container `db-patient-clinical`).
+- Garantir que `POSTGRES_USER`/`POSTGRES_PASSWORD` (e variáveis por banco) possam sobrescrever as credenciais default.
+- Verificar o `backend/docker-compose.yml` (dependências e redes do `backup-service`).
+- Criar roteiro de teste automatizado e o baseline `backend/backup/BACKUP_BASELINE.md`, documentando o comando de contingência e a estrutura do `/var/backups/status.json`.
+- Garantir que nenhuma exceção não tratada derrube a execução dos demais bancos.
+
+---
+
+### ✅ O que foi Implementado
+
+- **`backend/backup/backup_runner.py`**:
+  - `POSTGRES_DATABASES` passou a conter apenas `iam_db` (`db-iam`), `patient_clinical_db` (`db-patient-clinical`, usuário `clinical`) e `reporting_db` (`db-reporting`); os hosts órfãos `db-patient`/`db-clinical` foram removidos.
+  - Nova função `_apply_postgres_env_overrides()` com precedência `<PREFIXO>_DB_USER`/`_DB_PASSWORD` → `POSTGRES_USER`/`POSTGRES_PASSWORD` → default; hosts também configuráveis via `IAM_DB_HOST`, `PATIENT_CLINICAL_DB_HOST` e `REPORTING_DB_HOST`.
+  - `write_status_report()` passou a registrar `elapsed_seconds` (tempo de execução) e `database_count`.
+  - `run_all_backups()` com isolamento defensivo: `ensure_bucket`, cada banco PostgreSQL, o MongoDB e a limpeza de retenção ficaram em blocos `try/except` independentes, marcando `status: failed` sem interromper os demais alvos.
+- **`backend/docker-compose.yml`**: confirmado o `depends_on` do `backup-service` com os 5 alvos em `condition: service_healthy` (`db-iam`, `db-patient-clinical`, `db-reporting`, `db-ai`, `minio`) e todos na rede `backend`; adicionado o volume `backup_data:/var/backups` (antes declarado e não montado), garantindo a persistência do `status.json`.
+- **`backend/backup/test_backup_runner.py`** (novo): roteiro com 9 testes (`unittest`, autossuficiente com stubs de `boto3`/`botocore`/`schedule`) cobrindo topologia unificada, ausência de hosts órfãos, overrides por variáveis de ambiente, estrutura do `status.json` e isolamento de falhas.
+- **`backend/backup/BACKUP_BASELINE.md`** (novo): comando de contingência `docker compose run --rm backup-service python backup_runner.py --once`, estrutura detalhada do `/var/backups/status.json`, matriz de `depends_on`/redes, coleta de baseline (tempo/tamanho), critérios de aceite e rollback.
+- **`backend/scripts/test_backup_service.py`**: asserções obsoletas atualizadas (esperava `db-patient`/`db-clinical` e a string de rede sem espaços).
+
+---
+
+### ❌ O que deu Erro
+
+- A primeira execução do roteiro estático acusou 3 falhas por asserções desatualizadas (dependências `db-patient`/`db-clinical` e verificação de rede com formatação incorreta).
+- A verificação "host órfão `db-clinical` ausente" falhou porque o próprio comentário explicativo adicionado ao runner continha o literal `db-clinical`; o comentário foi reescrito para não poluir a busca.
+- A edição do volume no `docker-compose.yml` falhou na primeira tentativa por contexto ambíguo (o bloco `minio: condition: service_healthy` se repete em vários serviços).
+- O ambiente local não possui `boto3`, `schedule`, `pytest` nem Maven, exigindo stubs no roteiro de teste e validação alternativa do Compose.
+
+---
+
+### 🟢 O que Funcionou
+
+- `python3 backend/scripts/test_backup_service.py`: **101 passaram, 0 falharam** (antes: 94 passaram / 3 falharam).
+- `python3 backend/backup/test_backup_runner.py`: **9 testes, 0 falhas** — incluindo a simulação de falha isolada em `patient_clinical_db`, que resultou em `status: partial` sem abortar os demais bancos.
+- `python3 -m py_compile backend/backup/backup_runner.py backend/backup/test_backup_runner.py`: sintaxe válida.
+- `docker compose -f backend/docker-compose.yml config -q`: configuração válida (exit 0).
+- Nenhum arquivo do frontend foi modificado.
+
+---
+
+### 📝 Resumo do Dia
+
+A correção crítica da Fase B0 foi concluída e validada: o runner de backup deixou de apontar para os hosts órfãos e passou a proteger o banco unificado `patient_clinical_db`, com isolamento de falhas por banco, overrides por variáveis de ambiente e manifesto `status.json` enriquecido (tempo de execução e tamanho por banco). A orquestração no Compose foi confirmada e reforçada com o volume persistente. Ficou pendente como ponto de decisão o escopo da migração do `backup-service` para Java (`backend-java/backup-service`), que ainda não existe no repositório.
 
 ---
 
