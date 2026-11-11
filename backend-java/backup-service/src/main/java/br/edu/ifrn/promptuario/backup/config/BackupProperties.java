@@ -24,6 +24,8 @@ import org.springframework.validation.annotation.Validated;
  * @param rootDir           diretório raiz dos dumps e do manifesto de status
  * @param encryptionEnabled habilita a criptografia autenticada dos artefatos (LGPD)
  * @param encryptionSecret  segredo/chave simétrica usada pela criptografia
+ * @param dumpTimeoutSeconds timeout máximo (em segundos) de cada dump antes do
+ *                           {@code destroyForcibly()} do processo
  * @param postgres          conexões dos bancos PostgreSQL
  * @param mongo             conexão do banco MongoDB
  */
@@ -35,6 +37,7 @@ public record BackupProperties(
         @NotNull Path rootDir,
         boolean encryptionEnabled,
         @NotBlank String encryptionSecret,
+        @Min(1) int dumpTimeoutSeconds,
         @NotNull @Valid Postgres postgres,
         @NotNull @Valid Mongo mongo) {
 
