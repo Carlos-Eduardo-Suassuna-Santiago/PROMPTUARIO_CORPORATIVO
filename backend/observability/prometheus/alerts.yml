@@ -202,3 +202,32 @@ groups:
         annotations:
           summary: "Falhas na geração de prescrições"
           description: "Geração de prescrições com {{ $value }} erros/min."
+
+      # ─── Backup / Disaster Recovery ────────────────────────────
+      # Métricas expostas pelo backup-service em /actuator/prometheus.
+      - alert: BackupJobFailed
+        expr: increase(backup_status_total{status="failed"}[1h]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Execução de backup falhou em {{ $labels.target }}"
+          description: "Houve {{ $value }} execução(ões) com falha para o alvo {{ $labels.target }} na última hora."
+
+      - alert: BackupMissing24h
+        expr: (time() - backup_last_success_timestamp_seconds) > 86400
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Violação de RPO em {{ $labels.target }} (sem backup há mais de 24h)"
+          description: "O alvo {{ $labels.target }} está sem backup bem-sucedido há mais de 24 horas (RPO excedido)."
+
+      - alert: BackupArtifactTooSmall
+        expr: backup_artifact_size_bytes < 100000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Artefato de backup suspeito em {{ $labels.target }}"
+          description: "O artefato de {{ $labels.target }} tem {{ $value }} bytes, abaixo do mínimo esperado de 100 KB — possível dump truncado ou corrompido."
