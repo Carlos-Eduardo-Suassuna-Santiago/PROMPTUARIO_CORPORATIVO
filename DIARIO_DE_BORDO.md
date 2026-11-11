@@ -577,6 +577,45 @@ Foram adicionados health checks reativos para o Gateway e para os serviços inte
 
 ---
 
+## 2026-11-09 — Mensageria resiliente e containerização Java
+
+### 📋 Implementação Proposta
+
+- Reforçar a integração por eventos entre o serviço clínico Java e consumidores legados, com retentativas e publicação assíncrona.
+- Preparar o `patient-clinical-service` e o AI Service Java para execução em containers e ampliar a validação de integração.
+
+---
+
+### ✅ O que foi Implementado
+
+- Expansão da configuração RabbitMQ com exchange e fila clínica, bindings para `medical_record.created` e `prescription.generated`, além de rotas legadas compatíveis com o AI Service Python.
+- Atualização dos eventos de criação de prontuário e geração de prescrição com identificador, timestamp, tipo e correlação; publicação assíncrona, retentativas e opção configurável para encaminhamento às exchanges legadas.
+- Inclusão de `Dockerfile` multi-stage para compilar o `patient-clinical-service` com Java 21/Maven e executar a aplicação com usuário não privilegiado.
+- Criação de configuração Compose para os serviços Java e ajustes no Compose/Makefile do backend para usar a implementação Java unificada de pacientes e clínica.
+- Inclusão de teste de integração Spring Boot com PostgreSQL, RabbitMQ e MinIO via Testcontainers, condicionado à variável `RUN_INTEGRATION_TESTS=true`.
+- Inclusão da estrutura do AI Service e bibliotecas compartilhadas em `backend-java`, com imagens e documentação de execução.
+
+---
+
+### ❌ O que deu Erro
+
+- Nenhum erro de execução foi registrado nesta atividade. Os novos containers e testes de integração não foram executados nesta sessão.
+
+---
+
+### 🟢 O que Funcionou
+
+- As alterações de mensageria, infraestrutura Docker e teste de integração estão presentes no workspace para revisão.
+- As mudanças permanecem sem commit no branch `feature/docker`.
+
+---
+
+### 📝 Resumo do Dia
+
+Foram ampliadas a publicação de eventos clínicos e a compatibilidade com consumidores legados, com retentativas e envio assíncrono. O serviço clínico Java recebeu configuração de container multi-stage e passou a ser a implementação usada pelo Compose principal; também foram adicionados um Compose para os serviços Java e um teste de integração opcional com Testcontainers. A estrutura do AI Service e módulos compartilhados foi preparada em `backend-java`. Nenhum build de container ou teste foi executado nesta sessão, e as alterações permanecem pendentes de commit.
+
+---
+
 ## 2026-11-09 — Containerização do API Gateway Java
 
 ### 📋 Implementação Proposta

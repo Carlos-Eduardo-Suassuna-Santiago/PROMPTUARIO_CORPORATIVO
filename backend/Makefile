@@ -2,7 +2,7 @@
 
 # ─── Config ───────────────────────────────────────────────────────────────────
 COMPOSE = docker compose
-SERVICES = gateway iam-service patient-clinical-service patient-clinical-worker ai-service reporting-service reporting-worker
+SERVICES = gateway iam-service patient-clinical-service ai-service reporting-service reporting-worker
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \

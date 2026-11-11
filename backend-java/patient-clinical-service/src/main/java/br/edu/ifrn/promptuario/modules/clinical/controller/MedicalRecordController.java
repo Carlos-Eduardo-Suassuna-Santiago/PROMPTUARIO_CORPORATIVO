@@ -4,6 +4,8 @@ import br.edu.ifrn.promptuario.modules.clinical.dto.*;
 import br.edu.ifrn.promptuario.modules.clinical.model.*;
 import br.edu.ifrn.promptuario.modules.clinical.repository.*;
 import br.edu.ifrn.promptuario.shared.exception.ResourceNotFoundException;
+import br.edu.ifrn.promptuario.shared.event.MedicalRecordCreatedEvent;
+import br.edu.ifrn.promptuario.shared.messaging.EventPublisher;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.transaction.Transactional;
@@ -14,13 +16,14 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 @RestController @RequestMapping("/api/v1/records") @Tag(name="Medical records") @Transactional
 public class MedicalRecordController {
-    private final MedicalRecordRepository records; private final AppointmentRepository appointments; private final PrescriptionRepository prescriptions; private final ExamRequestRepository exams; private final MedicalCertificateRepository certificates;
-    public MedicalRecordController(MedicalRecordRepository records,AppointmentRepository appointments,PrescriptionRepository prescriptions,ExamRequestRepository exams,MedicalCertificateRepository certificates){this.records=records;this.appointments=appointments;this.prescriptions=prescriptions;this.exams=exams;this.certificates=certificates;}
+    private final MedicalRecordRepository records; private final AppointmentRepository appointments; private final PrescriptionRepository prescriptions; private final ExamRequestRepository exams; private final MedicalCertificateRepository certificates; private final EventPublisher eventPublisher;
+    public MedicalRecordController(MedicalRecordRepository records,AppointmentRepository appointments,PrescriptionRepository prescriptions,ExamRequestRepository exams,MedicalCertificateRepository certificates,EventPublisher eventPublisher){this.records=records;this.appointments=appointments;this.prescriptions=prescriptions;this.exams=exams;this.certificates=certificates;this.eventPublisher=eventPublisher;}
     @PostMapping @ResponseStatus(HttpStatus.CREATED) @PreAuthorize("hasAnyRole('DOCTOR','ADMIN')") @Transactional @Operation(summary="Create SOAP medical record")
-    public MedicalRecordResponseDto create(@Valid @RequestBody MedicalRecordCreateDto dto,Authentication auth){MedicalRecord r=dto.toEntity(); r.setAppointment(appointments.findById(dto.appointmentId()).orElseThrow(()->new ResourceNotFoundException("Consulta não encontrada")));r.setDoctorId(auth.getName());return MedicalRecordResponseDto.fromEntity(records.save(r));}
+    public MedicalRecordResponseDto create(@Valid @RequestBody MedicalRecordCreateDto dto,Authentication auth){MedicalRecord r=dto.toEntity(); r.setAppointment(appointments.findById(dto.appointmentId()).orElseThrow(()->new ResourceNotFoundException("Consulta não encontrada")));r.setDoctorId(auth.getName());MedicalRecord saved=records.save(r);eventPublisher.publish("domain.events","medical_record.created",new MedicalRecordCreatedEvent(UUID.randomUUID(),Instant.now(),"MedicalRecordCreated",UUID.randomUUID().toString(),saved.getId(),saved.getAppointment().getId(),saved.getPatientId(),saved.getDoctorId(),saved.getChiefComplaint(),saved.getDiagnosisCodes(),saved.getPrescriptions().size(),saved.getExamRequests().size()));return MedicalRecordResponseDto.fromEntity(saved);}
     @GetMapping("/{id}") @PreAuthorize("hasAnyRole('ADMIN','DOCTOR','ATTENDANT','PATIENT')") public MedicalRecordResponseDto get(@PathVariable String id){return MedicalRecordResponseDto.fromEntity(find(id));}
     @PatchMapping("/{id}") @PreAuthorize("hasAnyRole('DOCTOR','ADMIN')") @Transactional public MedicalRecordResponseDto update(@PathVariable String id,@RequestBody MedicalRecordUpdateDto dto){MedicalRecord r=find(id);if(dto.chiefComplaint()!=null)r.setChiefComplaint(dto.chiefComplaint());if(dto.anamnesis()!=null)r.setAnamnesis(dto.anamnesis());if(dto.physicalExam()!=null)r.setPhysicalExam(dto.physicalExam());if(dto.diagnosis()!=null)r.setDiagnosis(dto.diagnosis());if(dto.diagnosisCodes()!=null)r.setDiagnosisCodes(dto.diagnosisCodes());if(dto.treatmentPlan()!=null)r.setTreatmentPlan(dto.treatmentPlan());if(dto.observations()!=null)r.setObservations(dto.observations());if(dto.richNotes()!=null)r.setRichNotes(dto.richNotes());return MedicalRecordResponseDto.fromEntity(records.save(r));}
     @GetMapping("/patient/{patientId}") @PreAuthorize("hasAnyRole('ADMIN','DOCTOR','ATTENDANT','PATIENT')") public List<MedicalRecordResponseDto> history(@PathVariable String patientId,@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="20") int size){return records.findByPatientIdOrderByCreatedAtDesc(patientId,org.springframework.data.domain.PageRequest.of(Math.max(page,0),Math.max(size,1))).getContent().stream().map(MedicalRecordResponseDto::fromEntity).toList();}
