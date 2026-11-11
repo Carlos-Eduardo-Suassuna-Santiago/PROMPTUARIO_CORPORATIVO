@@ -2,6 +2,7 @@ package br.edu.ifrn.promptuario.backup.dumper;
 
 import br.edu.ifrn.promptuario.backup.config.BackupProperties;
 import br.edu.ifrn.promptuario.backup.model.BackupKind;
+import br.edu.ifrn.promptuario.backup.model.DatabaseEndpoint;
 import br.edu.ifrn.promptuario.backup.model.DatabaseTarget;
 import br.edu.ifrn.promptuario.backup.service.CryptoService;
 import br.edu.ifrn.promptuario.backup.storage.S3BackupStorageService;

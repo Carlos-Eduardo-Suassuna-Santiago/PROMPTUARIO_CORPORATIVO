@@ -12,6 +12,7 @@ import br.edu.ifrn.promptuario.backup.config.BackupProperties;
 import br.edu.ifrn.promptuario.backup.model.BackupKind;
 import br.edu.ifrn.promptuario.backup.model.BackupStatus;
 import br.edu.ifrn.promptuario.backup.model.DatabaseBackupResult;
+import br.edu.ifrn.promptuario.backup.model.DatabaseEndpoint;
 import br.edu.ifrn.promptuario.backup.model.DatabaseTarget;
 import br.edu.ifrn.promptuario.backup.model.ExecutionMode;
 import br.edu.ifrn.promptuario.backup.service.CryptoService;
@@ -68,7 +69,7 @@ class StreamingDumpPipelineTest {
         BackupProperties.DatabaseConnection connection =
                 new BackupProperties.DatabaseConnection("localhost", 5432, "iam_db", "iam", "iam_pass");
         return new BackupProperties(
-                "0 0 3 * * ?", 7, rootDir, encryptionEnabled, SECRET, 30,
+                "0 0 3 * * ?", 7, rootDir, encryptionEnabled, SECRET, 30, 30, 24, "0 0 4 1 * ?",
                 new BackupProperties.Postgres(connection, connection, connection),
                 new BackupProperties.Mongo("localhost", 27017, "ai_db", "ai", "ai_pass"));
     }

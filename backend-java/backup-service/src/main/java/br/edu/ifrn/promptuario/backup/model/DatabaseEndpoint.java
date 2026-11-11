@@ -1,9 +1,8 @@
-package br.edu.ifrn.promptuario.backup.dumper;
-
-import br.edu.ifrn.promptuario.backup.model.BackupKind;
+package br.edu.ifrn.promptuario.backup.model;
 
 /**
- * Credenciais e localização de um alvo de dump.
+ * Credenciais e localização de um alvo de banco (usado por dumpers e
+ * restauradores).
  *
  * @param host     hostname do servidor de banco
  * @param port     porta TCP
