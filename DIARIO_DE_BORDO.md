@@ -899,6 +899,118 @@ A restauração segura e a verificação automatizada de integridade foram imple
 
 ---
 
+## 2026-11-11 — Observabilidade Completa do Backup-Service (Micrometer + Prometheus + Grafana)
+
+### 📋 Implementação Proposta
+
+- Implementar observabilidade completa do microsserviço `backup-service` com métricas padronizadas via Micrometer, coleta pelo Prometheus, regras de alerta e dashboard Grafana para Disaster Recovery.
+
+---
+
+### ✅ O que foi Implementado
+
+- **`BackupMetricsService.java`** (`br.edu.ifrn.promptuario.backup.metrics`): injeção de `MeterRegistry` e declaração de 6 métricas padronizadas:
+  - `backup_execution_duration_seconds` (Timer, labels: `target`, `status`) — duração da execução do dump por banco.
+  - `backup_artifact_size_bytes` (Gauge, label: `target`) — tamanho em bytes do artefato comprimido e criptografado.
+  - `backup_last_success_timestamp_seconds` (Gauge, label: `target`) — epoch timestamp em segundos do último backup com sucesso.
+  - `backup_status_total` (Counter, labels: `target`, `status`) — total de execuções (`success`/`failed`).
+  - `backup_retention_deleted_total` (Counter) — artefatos expurgados pela política de retenção.
+  - `backup_restore_duration_seconds` (Timer, labels: `target`, `status`) — tempo gasto em restaurações.
+- **`BackupOrchestratorService.java`**: chamada a `metricsService.recordBackupExecution(...)` ao final de cada dump isolado, atualizando duração, status, tamanho do artefato e último sucesso.
+- **`RestoreOrchestratorService.java`**: chamada a `metricsService.recordRestoreExecution(...)` no bloco `finally` de cada restauração, garantindo registro mesmo em exceção.
+- **`backend/observability/prometheus/prometheus.yml`**: scrape job `backup-service` em `/actuator/prometheus`, intervalo 15s, alvo `backup-service:8000`.
+- **`backend/observability/prometheus/alerts.yml`**: 3 regras de alerta de backup:
+  - `BackupJobFailed` (critical) — `increase(backup_status_total{status="failed"}[1h]) > 0`.
+  - `BackupMissing24h` (warning) — `(time() - backup_last_success_timestamp_seconds) > 86400` (violação de RPO).
+  - `BackupArtifactTooSmall` (warning) — `backup_artifact_size_bytes < 100000`.
+- **`backend/observability/grafana/provisioning/dashboards/backup_dashboard.json`**: dashboard "Disaster Recovery & Backups" (uid: `backup-dr`) com:
+  - Stat: RPO Status (verde < 24h / vermelho > 24h), Tamanho Total dos Backups, Último Backup por Banco.
+  - Time series: Duração da Execução dos Dumps (média e máx por alvo).
+  - Gauge: Tamanho individual dos bancos (IAM, Patient-Clinical, Reporting, AI).
+  - Table: Histórico das últimas execuções e status (merge de métricas).
+  - Painéis extras: Total de Execuções por Status, Duração das Restaurações, Artefatos Expurgados pela Retenção.
+
+---
+
+### ❌ O que deu Erro
+
+- Nenhum erro registrado. Todos os arquivos já estavam implementados no repositório e foram validados (JSON do dashboard, YAML do Prometheus, YAML dos alertas e conexão dos orquestradores com o `MeterRegistry`).
+
+---
+
+### 🟢 O que Funcionou
+
+- Validação do JSON do dashboard Grafana (sintaxe correta, importável via provisioning).
+- Validação do `prometheus.yml` (job `backup-service` presente com path, intervalo e target corretos).
+- Validação do `alerts.yml` (3 regras de backup encontradas com expressões e severidades corretas).
+- Confirmação de integração: `BackupOrchestratorService` e `RestoreOrchestratorService` já injetam e chamam `BackupMetricsService`.
+
+---
+
+### 📝 Resumo do Dia
+
+A observabilidade completa do `backup-service` foi implementada e validada: métricas padronizadas via Micrometer expostas pelo Spring Boot Actuator, scrape configurado no Prometheus, 3 regras de alerta de Disaster Recovery (falha, violação de RPO e artefato suspeito) e dashboard Grafana com stat panels, time series, gauge e tabela de histórico. Nenhum erro foi encontrado; todos os arquivos estavam no repositório e prontos para uso em produção.
+
+---
+
+
+## 2026-11-11 — Cutover do Backup-Service de Python para Java 21
+
+### 📋 Implementação Proposta
+
+- Migrar o `backup-service` da implementação Python (`backup_runner.py`) para Java 21 com Spring Boot 3.3.4.
+- Implementar CLI com Picocli para execução on-demand (`--once`, `--restore`) e modo daemon.
+- Criar controladores REST operacionais e segurança com OAuth2 Resource Server (JWT).
+- Construir Dockerfile multi-stage otimizado para Alpine Linux.
+- Atualizar `docker-compose.yml` e `Makefile` para o novo serviço Java.
+
+---
+
+### ✅ O que foi Implementado
+
+- **`BackupCommandLineRunner.java`** (`br.edu.ifrn.promptuario.backup.cli`):
+  - `--once`: dispara backup completo manual e finaliza com `System.exit(0)` (sucesso) ou `System.exit(1)` (falha).
+  - `--restore --kind <postgres|mongo> --target <alvo> --file <caminho>`: executa restauração controlada com saída de status correspondente.
+  - Sem argumentos: inicia como daemon, servindo API REST na porta 8000 e agendador `@Scheduled`.
+- **`SecurityConfig.java`** (`br.edu.ifrn.promptuario.backup.config`):
+  - Libera `/healthz`, `/actuator/health` e `/actuator/prometheus` (sem autenticação).
+  - Protege `/api/v1/backups/**` exigindo role `ADMIN` via Spring Security OAuth2 Resource Server (JWT).
+- **`BackupOperationController.java`** (`br.edu.ifrn.promptuario.backup.controller`):
+  - `GET /healthz` → `{"status":"ok","service":"backup-service","version":"1.0.0-java"}`.
+  - `GET /api/v1/backups/status` → último status de `/var/backups/status.json`.
+  - `POST /api/v1/backups/execute` → backup assíncrono sob demanda.
+- **`RestoreOperationController.java`** (`br.edu.ifrn.promptuario.backup.controller`):
+  - `POST /api/v1/backups/restore` → inicia restore controlado.
+- **`Dockerfile`** (multi-stage Alpine):
+  - Stage build: `maven:3.9-eclipse-temurin-21-alpine`, compila JAR executável.
+  - Stage runtime: `eclipse-temurin:21-jre-alpine`, `apk add --no-cache postgresql15-client mongodb-tools bash tzdata`.
+  - Usuário não-root `backup`, volume `/var/backups`, entrypoint com `-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0`.
+- **`backend/docker-compose.yml`**: serviço `backup-service` reescrito para build Java 21, porta `8006:8000`, variáveis de ambiente completas, `depends_on` com `service_healthy`.
+- **`backend/Makefile`**: `make backup-once` e `make restore-db` atualizados para `java -jar app.jar`.
+- **`pom.xml`**: adicionada dependência `spring-boot-starter-oauth2-resource-server`.
+
+---
+
+### ❌ O que deu Erro
+
+- Nenhum erro registrado. Todos os arquivos foram criados/atualizados, validados e enviados para o repositório remoto (`origin/feature/backup-service`, commit `caf97bf`).
+
+---
+
+### 🟢 O que Funcionou
+
+- Commit `caf97bf` enviado com sucesso para o repositório remoto.
+- Estrutura de pacotes consistente com o restante do projeto (`br.edu.ifrn.promptuario.backup.*`).
+- Integração com as métricas Micrometer já existentes (`BackupMetricsService`).
+- Dockerfile multi-stage segue as boas práticas de imagem enxuta (Alpine + JRE).
+
+---
+
+### 📝 Resumo do Dia
+
+O cutover do `backup-service` de Python para Java 21 foi concluído: CLI com Picocli, controladores REST operacionais, segurança JWT com role ADMIN, Dockerfile multi-stage Alpine, atualização do docker-compose e Makefile. O serviço está pronto para homologação em staging antes do deploy em produção.
+
+---
 <!-- TEMPLATE PARA NOVO DIA — Copie o bloco abaixo ao iniciar uma nova entrada -->
 
 <!--
