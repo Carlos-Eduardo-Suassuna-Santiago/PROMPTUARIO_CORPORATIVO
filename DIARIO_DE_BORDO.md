@@ -844,6 +844,61 @@ O pipeline de dump, criptografia e upload foi implementado e validado de ponta a
 
 ---
 
+## 2026-11-11 — Restauração Segura, Validação de Integridade e DR Drill (Fase B3)
+
+### 📋 Implementação Proposta
+
+- Implementar a restauração controlada com três princípios de segurança: validação pré-restore por SHA-256, autenticação criptográfica (AES-GCM) e timeout estrito (ex.: 30 minutos).
+- Criar a interface `DatabaseRestorer` e os restauradores PostgreSQL e MongoDB.
+- Criar o `RestoreOrchestratorService` (resolução do alvo, staging do MinIO, log de auditoria e métricas).
+- Criar o `DrillVerificationService` (drill mensal em base efêmera, atestando RTO e RPO sem tocar na produção).
+- Criar testes unitários com JUnit 5 cobrindo arquivos íntegros e arquivos corrompidos.
+
+---
+
+### ✅ O que foi Implementado
+
+- **Pacote `restorer`** (novo): `DatabaseRestorer` (contrato `boolean restore(DatabaseTarget, Path, String)`), `RestoreFailedException`, `AbstractStreamingDatabaseRestorer` (pipeline `FileInputStream → CipherInputStream (AES-256-GCM) → GZIPInputStream → stdin do processo`), `PostgresDatabaseRestorer` (`psql` com a senha via `PGPASSWORD`) e `MongoDatabaseRestorer` (`mongorestore --archive --gzip --drop`).
+- **Barreiras de segurança**: verificação de arquivo existente/legível, conferência do SHA-256 contra o manifesto **antes de qualquer conexão** e validação determinística da tag GCM por um dreno explícito do stream cifrado (necessário porque o `close()` do `CipherInputStream` engole `BadPaddingException` e o descompressor pode concluir antes do fim do stream cifrado).
+- **Timeout de segurança** de 30 min (`BACKUP_RESTORE_TIMEOUT_SECONDS`) imposto por watchdog que encerra o processo à força, com `stdout`/`stderr` drenados em threads dedicadas e mensagens saneadas (a senha do alvo é substituída por `***`).
+- **`RestoreOrchestratorService.restoreDatabase(targetName, filePath, sha256)`**: resolve o alvo por nome de banco, nome do enum ou forma normalizada; baixa chaves remotas do MinIO para um diretório de staging temporário (removido ao final); aciona o restaurador correspondente; grava o log de auditoria e atualiza as métricas de restauração.
+- **`RestoreAuditService`** (novo): trilha de auditoria em JSON Lines em `{rootDir}/restore-audit.log`, além de um logger dedicado de auditoria.
+- **`DrillVerificationService`** (novo): drill mensal agendado (`BACKUP_DRILL_CRON`), restaurando o artefato mais recente em uma base efêmera com sufixo `_drill` (nunca a produção), medindo o RTO e atestando o RPO (`BACKUP_RPO_HOURS`), persistindo `backup_restore_drill_status.json` e publicando a gauge `backup_restore_drill_status`.
+- **`S3BackupStorageService.downloadArtifact(...)`** (novo): download do artefato remoto para o diretório de staging.
+- **`DatabaseEndpoint` movido** do pacote `dumper` para `model`, eliminando o acoplamento `restorer → dumper`.
+- **`BackupProperties`/`application.yml`**: novas propriedades `restore-timeout-seconds` (1800), `rpo-hours` (24) e `drill-cron` (`0 0 4 1 * ?`).
+- **Testes**: `StreamingRestorePipelineTest` (7 testes), `RestoreOrchestratorServiceTest` (6) e `DrillVerificationServiceTest` (6).
+
+---
+
+### ❌ O que deu Erro
+
+- O `DrillVerificationService` não compilava ao chamar `restoreInto` através da interface `DatabaseRestorer` (que, conforme a especificação, declara apenas `restore`); a chamada foi direcionada aos restauradores concretos.
+- Detectado (e corrigido) um bug de lógica no watchdog da restauração: interrompê-lo logo após a escrita do stream cancelava o próprio timeout; a espera pelo processo foi extraída para um método próprio (`verifyCompletion`), mantendo o watchdog armado até o fim.
+- A validação da tag GCM não era determinística: o `close()` do `CipherInputStream` engole `BadPaddingException` e o `GZIPInputStream` pode encerrar antes do fim do stream cifrado; foi adicionado um dreno explícito (`forceCipherCompletion`) para forçar a verificação.
+- A assinatura de `BackupProperties` ganhou três componentes, exigindo a atualização do teste da Fase B2.
+- Uma edição no arquivo de teste removeu por engano o fechamento do método `returnsFalseWhenArtifactMissing` (o `assertThat` e a chave), gerando 10 erros de sintaxe que foram corrigidos.
+
+---
+
+### 🟢 O que Funcionou
+
+- `mvn test`: **BUILD SUCCESS** — 27 testes, 0 falhas e 0 erros (4 do contexto, 4 do pipeline de dump, 7 do pipeline de restauração, 6 do orquestrador e 6 do drill).
+- O teste do pipeline de restauração prova o fluxo completo com um comando real: o conteúdo decifrado e descomprimido chega íntegro ao `stdin`, idêntico ao SQL original.
+- A corrupção da tag GCM foi detectada e a restauração barrada, conforme o log: `scripted-restore recebeu o dump incompleto ... javax.crypto.AEADBadTagException: Tag mismatch`.
+- SHA-256 divergente cancelou a restauração **sem iniciar qualquer processo/conexão**, e o arquivo de saída sequer foi criado.
+- O timeout de segurança de 1s encerrou uma restauração travada, e a senha do alvo não aparece nas mensagens de erro (substituída por `***`).
+- O drill confirmou o uso da base efêmera (`patient_clinical_db_drill`), atestou RTO e RPO, sinalizou violação de RPO com artefato de 48h e persistiu o `backup_restore_drill_status.json`.
+- Nenhum arquivo do frontend foi modificado.
+
+---
+
+### 📝 Resumo do Dia
+
+A restauração segura e a verificação automatizada de integridade foram implementadas e validadas: o serviço passou a validar o SHA-256 antes de qualquer conexão, autenticar os artefatos com AES-256-GCM (barrando corrupção e adulteração de forma determinística), aplicar timeout estrito, resolver os alvos por nome, baixar artefatos remotos para um staging temporário, registrar trilha de auditoria e métricas, e executar um drill mensal de contingência em base efêmera com atestado de RTO e RPO. Ficaram para as próximas fases o CLI picocli (`--once`/`--restore`), a API REST operacional, o upload do manifesto e a containerização; até o momento nada foi commitado.
+
+---
+
 <!-- TEMPLATE PARA NOVO DIA — Copie o bloco abaixo ao iniciar uma nova entrada -->
 
 <!--
