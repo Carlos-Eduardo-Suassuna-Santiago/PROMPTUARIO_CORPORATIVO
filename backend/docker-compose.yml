@@ -448,6 +448,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+    volumes:
+      - backup_data:/var/backups
     networks: [ backend ]
     restart: unless-stopped
 

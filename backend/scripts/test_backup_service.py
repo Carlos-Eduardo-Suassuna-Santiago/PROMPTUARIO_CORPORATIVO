@@ -92,10 +92,18 @@ def test_backup_runner_logic() -> None:
                "write_status_report", "restore_postgres", "restore_mongo", "run_all_backups"]:
         check(f"Função {fn}() definida", f"def {fn}" in runner)
 
-    # 4 bancos PostgreSQL
-    check("4 bancos PostgreSQL configurados", runner.count('"host":') >= 4)
-    for db in ["db-iam", "db-patient", "db-clinical", "db-reporting"]:
+    # 3 bancos PostgreSQL (topologia unificada pós-Fase 12).
+    # NOTA: o container unificado é "db-patient-clinical" (banco "patient_clinical_db").
+    # Os hosts órfãos "db-patient" e "db-clinical" foram removidos do runner.
+    check("3 bancos PostgreSQL configurados", runner.count('"host":') >= 3)
+    for db in ["db-iam", "db-patient-clinical", "db-reporting"]:
         check(f"PostgreSQL {db} configurado", db in runner)
+    check("Banco unificado patient_clinical_db configurado", "patient_clinical_db" in runner)
+    check("Host órfão db-clinical ausente do runner", "db-clinical" not in runner)
+    check("Override por POSTGRES_USER presente",
+          "POSTGRES_USER" in runner)
+    check("Override por POSTGRES_PASSWORD presente",
+          "POSTGRES_PASSWORD" in runner)
 
     # MongoDB
     check("MongoDB db-ai configurado", "db-ai" in runner)
@@ -208,11 +216,17 @@ def test_docker_compose() -> None:
     ]:
         check(f"Variável {var} configurada", f"{var}: {val}" in compose)
 
-    for db in ["db-iam", "db-patient", "db-clinical", "db-reporting", "db-ai", "minio"]:
+    # Alvos de depends_on na topologia unificada (db-patient + db-clinical -> db-patient-clinical)
+    for db in ["db-iam", "db-patient-clinical", "db-reporting", "db-ai", "minio"]:
         check(f"depends_on {db} presente", f"{db}:" in compose)
 
     check("condition: service_healthy presente", "condition: service_healthy" in compose)
-    check("Rede backend configurada", "networks: [backend]" in compose)
+    check("Rede backend configurada para o backup-service",
+          "networks: [ backend ]" in compose or "networks: [backend]" in compose)
+    check("backup-service compartilha a rede backend com os alvos",
+          compose.count("networks: [ backend ]") >= 5)
+    check("Volume backup_data montado em /var/backups",
+          "backup_data:/var/backups" in compose)
     check("restart: unless-stopped configurado", "restart: unless-stopped" in compose)
 
 
