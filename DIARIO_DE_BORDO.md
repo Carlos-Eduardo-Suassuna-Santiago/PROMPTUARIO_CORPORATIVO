@@ -794,6 +794,56 @@ Concluída a Fase B1 da migração do backup para Java: a fundação do `backup-
 
 ---
 
+## 2026-11-11 — Pipeline de Dump, Criptografia AES-256-GCM e Upload MinIO (Fase B2)
+
+### 📋 Implementação Proposta
+
+- Implementar o pipeline de streaming de dump do `backup-service`: `ProcessBuilder (stdout)` → `GZIPOutputStream` → `CipherOutputStream (AES-256-GCM)` → `DigestOutputStream (SHA-256)` → `FileOutputStream` → upload para o MinIO.
+- Criar o `CryptoService` (AES/GCM/NoPadding, chave de 256 bits, IV de 12 bytes por arquivo prefixado no stream, tag de 128 bits).
+- Criar os dumpers (interface `DatabaseDumper` e implementações PostgreSQL e MongoDB) com timeout configurável e isolamento de falhas por banco.
+- Criar o `S3BackupStorageService` (MinIO com `forcePathStyle`), o `RetentionCleanupService`, o `StatusReportService` e o `BackupOrchestratorService`.
+
+---
+
+### ✅ O que foi Implementado
+
+- **`CryptoService`** (`service`): criptografia autenticada `AES/GCM/NoPadding` com chave de 256 bits, IV de 12 bytes gerado por `SecureRandom` para cada artefato e prefixado no início do stream (arquivo autocontido `[IV(12)][ciphertext+tag]`), tag de autenticação de 128 bits e os métodos `createEncryptingStream`/`createDecryptingStream`. A chave é derivada do segredo configurado: usada diretamente quando possui 32 bytes, caso contrário via SHA-256 (garantindo sempre uma chave de 256 bits, nunca curta).
+- **Pipeline de streaming** (`AbstractStreamingDatabaseDumper`): `ProcessBuilder → GZIPOutputStream → CipherOutputStream → DigestOutputStream → FileOutputStream`, sem carregar o dump em memória (buffer único de 64 KB). O SHA-256 é calculado sobre o arquivo final, incluindo o prefixo do IV.
+- **Dumpers**: `PostgresDatabaseDumper` executa `pg_dump -h <host> -p <port> -U <user> <dbname>` com a senha injetada por `PGPASSWORD` (nunca na linha de comando) e gzip habilitado; `MongoDatabaseDumper` executa `mongodump --archive --gzip` e desabilita o gzip do pipeline, pois a ferramenta já comprime. Timeout configurável (`BACKUP_DUMP_TIMEOUT_SECONDS`, padrão 600s) aplicado por um watchdog que encerra o processo à força, além de `stderr` drenado em thread dedicada (evitando deadlock de pipe) e capturado na mensagem de falha.
+- **`S3BackupStorageService`** (`storage`): `S3Client` com `forcePathStyle(true)` (bean em `S3Config`), `ensureBucketExists`, `uploadArtifact` com metadados (SHA-256, alvo, timestamp e tamanho) e chave no padrão `backups/{kind}/{dbname}/{yyyy}/{MM}/{dd}/{filename}`; deleção em lote via `DeleteObjectsRequest` (até 1000 chaves por requisição).
+- **`RetentionCleanupService`**: expurgo local por data de modificação e deleção em lote no MinIO, protegendo os metadados `status.json` e `manifest.json`.
+- **`StatusReportService`**: grava o `/var/backups/status.json` em texto claro e o `/var/backups/manifest.json` criptografado.
+- **`BackupOrchestratorService.executeFullBackup(mode)`**: garante o bucket, executa os dumps de IAM_DB, PATIENT_CLINICAL_DB, REPORTING_DB e MONGO_AI_DB em sequência com `try/catch` isolado por alvo, grava o manifesto criptográfico, atualiza o `status.json`, executa a retenção e devolve o `BackupJobExecution` consolidado.
+- **`StreamingDumpPipelineTest`** (novo): prova o pipeline ponta a ponta sem PostgreSQL, MongoDB ou MinIO.
+
+---
+
+### ❌ O que deu Erro
+
+- O primeiro `mvn test` falhou na compilação: `waitFor(long, TimeUnit)` lança `InterruptedException` (exceção checada) não declarada; o trecho passou a tratá-la restaurando o flag de interrupção e lançando `DumpExecutionException`.
+- Uma asserção do teste verificava que o diretório `postgresql/` não existia após uma falha, mas apenas o **arquivo** parcial é removido (as pastas vazias permanecem); a asserção foi corrigida para verificar que nenhum arquivo regular remanesce em disco.
+- Faltava declarar `throws Exception` no método de teste que usa `Files.walk` (que lança `IOException`).
+
+---
+
+### 🟢 O que Funcionou
+
+- `mvn test`: **BUILD SUCCESS** — 23 fontes compilados e **Tests run: 8, Failures: 0, Errors: 0**.
+- O contexto Spring sobe com todos os beans novos (S3Client, dumpers, storage e orquestrador) devidamente injetados.
+- O teste do pipeline executa um comando real, grava o artefato cifrado e recupera o conteúdo original decifrando (lendo o IV do prefixo) e descomprimindo.
+- O SHA-256 registrado no resultado coincide com o hash real do arquivo em disco e o conteúdo não aparece em texto claro no artefato.
+- O IV nunca é reutilizado entre artefatos e a adulteração da tag GCM é detectada na leitura.
+- Um comando com código de saída 3 gera `FAILED` com a mensagem do `stderr`, sem deixar artefato parcial/corrompido em disco.
+- Nenhum arquivo do frontend foi modificado.
+
+---
+
+### 📝 Resumo do Dia
+
+O pipeline de dump, criptografia e upload foi implementado e validado de ponta a ponta: o serviço passou a executar os dumps em streaming (sem alocação massiva de RAM), cifrar cada artefato com AES-256-GCM (IV por arquivo e tag de 128 bits), calcular o SHA-256 do arquivo final e enviá-lo ao MinIO com metadados de integridade, além de aplicar a política de retenção e gerar o manifesto criptográfico e o status operacional. Ficaram para as próximas fases o agendamento (`@Scheduled`), o CLI picocli (`--once`/`--restore`), a API REST de consulta, o upload do manifesto e a containerização; até o momento nada foi commitado.
+
+---
+
 <!-- TEMPLATE PARA NOVO DIA — Copie o bloco abaixo ao iniciar uma nova entrada -->
 
 <!--
