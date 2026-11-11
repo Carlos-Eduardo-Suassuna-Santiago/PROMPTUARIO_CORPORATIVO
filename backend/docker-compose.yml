@@ -423,20 +423,28 @@ services:
   # Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ BACKUP SERVICE Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   backup-service:
     build:
-      context: .
-      dockerfile: backup/Dockerfile
+      context: ../backend-java/backup-service
+      dockerfile: Dockerfile
+    container_name: backup-service
+    restart: unless-stopped
     environment:
-      MONGO_HOST: db-ai
-      MONGO_USER: ai
-      MONGO_PASS: ai_pass
-      MONGO_DB: ai_db
-      MINIO_ENDPOINT: http://minio:9000
-      MINIO_ACCESS_KEY: promptuario
-      MINIO_SECRET_KEY: promptuario_pass
-      MINIO_BACKUP_BUCKET: backups
-      BACKUP_RETENTION_DAYS: "7"
-      BACKUP_SCHEDULE_HOURS: "24"
-      BACKUP_ROOT_DIR: /var/backups
+      - BACKUP_SCHEDULE_CRON=0 0 3 * * ?
+      - BACKUP_RETENTION_DAYS=7
+      - BACKUP_ENCRYPTION_ENABLED=true
+      - BACKUP_ENCRYPTION_KEY=${BACKUP_ENCRYPTION_KEY:-CHAVE_SECRETA_AES_256_PROMPTUARIO_32B}
+      - DB_IAM_HOST=db-iam
+      - DB_PATIENT_CLINICAL_HOST=db-patient-clinical
+      - DB_REPORTING_HOST=db-reporting
+      - MONGO_HOST=db-ai
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-promptuario}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-promptuario_pass}
+      - MINIO_BACKUP_BUCKET=backups
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+    volumes:
+      - backup_data:/var/backups
+    ports:
+      - "8006:8000"
     depends_on:
       db-iam:
         condition: service_healthy
@@ -448,10 +456,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
-    volumes:
-      - backup_data:/var/backups
-    networks: [ backend ]
-    restart: unless-stopped
+    networks:
+      - backend
 
 networks:
   backend:
