@@ -1,6 +1,7 @@
 package br.edu.ifrn.promptuario.backup.service;
 
 import br.edu.ifrn.promptuario.backup.config.BackupProperties;
+import br.edu.ifrn.promptuario.backup.metrics.BackupMetricsService;
 import br.edu.ifrn.promptuario.backup.model.BackupKind;
 import br.edu.ifrn.promptuario.backup.model.DatabaseEndpoint;
 import br.edu.ifrn.promptuario.backup.model.DatabaseTarget;
@@ -9,8 +10,6 @@ import br.edu.ifrn.promptuario.backup.restorer.MongoDatabaseRestorer;
 import br.edu.ifrn.promptuario.backup.restorer.PostgresDatabaseRestorer;
 import br.edu.ifrn.promptuario.backup.restorer.RestoreFailedException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.micrometer.core.instrument.Gauge;
-import io.micrometer.core.instrument.MeterRegistry;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -20,9 +19,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,22 +52,21 @@ public class DrillVerificationService {
 
     private final BackupProperties backupProperties;
     private final RestoreAuditService auditService;
-    private final MeterRegistry meterRegistry;
+    private final BackupMetricsService metricsService;
     private final ObjectMapper objectMapper;
     private final PostgresDatabaseRestorer postgresRestorer;
     private final MongoDatabaseRestorer mongoRestorer;
-    private final ConcurrentMap<DatabaseTarget, AtomicInteger> drillStatus = new ConcurrentHashMap<>();
 
     public DrillVerificationService(
             BackupProperties backupProperties,
             RestoreAuditService auditService,
-            MeterRegistry meterRegistry,
+            BackupMetricsService metricsService,
             ObjectMapper objectMapper,
             PostgresDatabaseRestorer postgresRestorer,
             MongoDatabaseRestorer mongoRestorer) {
         this.backupProperties = backupProperties;
         this.auditService = auditService;
-        this.meterRegistry = meterRegistry;
+        this.metricsService = metricsService;
         this.objectMapper = objectMapper;
         this.postgresRestorer = postgresRestorer;
         this.mongoRestorer = mongoRestorer;
@@ -236,12 +231,7 @@ public class DrillVerificationService {
                 target, drillDatabase, artifact, success, rpoMet, rtoMet, rtoSeconds, backupAgeHours,
                 message, Instant.now());
 
-        publishStatusMetric(target, success);
-        meterRegistry.counter("backup_restore_drill_total",
-                        "target", target.name(),
-                        "outcome", success ? "success" : "failure",
-                        "rpo", rpoMet ? "met" : "missed")
-                .increment();
+        metricsService.recordDrill(target, success, rpoMet);
         auditService.record(RestoreAuditService.RestoreAuditEntry.of(
                 EVENT_DRILL, target.name(), artifact, null, success, (long) (rtoSeconds * 1000.0d), message));
 
@@ -266,17 +256,6 @@ public class DrillVerificationService {
             log.error("Falha ao gravar o status do drill em {}: {}", statusFile, e.getMessage());
             return null;
         }
-    }
-
-    private void publishStatusMetric(DatabaseTarget target, boolean success) {
-        drillStatus.computeIfAbsent(target, candidate -> {
-            AtomicInteger holder = new AtomicInteger(0);
-            Gauge.builder("backup_restore_drill_status", holder, AtomicInteger::doubleValue)
-                    .description("Resultado do último drill de contingência (1=sucesso, 0=falha)")
-                    .tag("target", candidate.name())
-                    .register(meterRegistry);
-            return holder;
-        }).set(success ? 1 : 0);
     }
 
     private static double elapsedSeconds(long startNanos) {

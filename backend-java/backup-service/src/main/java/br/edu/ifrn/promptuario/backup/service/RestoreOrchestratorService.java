@@ -1,17 +1,16 @@
 package br.edu.ifrn.promptuario.backup.service;
 
 import br.edu.ifrn.promptuario.backup.config.BackupProperties;
+import br.edu.ifrn.promptuario.backup.metrics.BackupMetricsService;
 import br.edu.ifrn.promptuario.backup.model.DatabaseTarget;
 import br.edu.ifrn.promptuario.backup.restorer.DatabaseRestorer;
 import br.edu.ifrn.promptuario.backup.restorer.MongoDatabaseRestorer;
 import br.edu.ifrn.promptuario.backup.restorer.PostgresDatabaseRestorer;
 import br.edu.ifrn.promptuario.backup.restorer.RestoreFailedException;
 import br.edu.ifrn.promptuario.backup.storage.S3BackupStorageService;
-import io.micrometer.core.instrument.MeterRegistry;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.Locale;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -38,7 +37,7 @@ public class RestoreOrchestratorService {
     private final BackupProperties backupProperties;
     private final S3BackupStorageService storageService;
     private final RestoreAuditService auditService;
-    private final MeterRegistry meterRegistry;
+    private final BackupMetricsService metricsService;
     private final PostgresDatabaseRestorer postgresRestorer;
     private final MongoDatabaseRestorer mongoRestorer;
 
@@ -46,13 +45,13 @@ public class RestoreOrchestratorService {
             BackupProperties backupProperties,
             S3BackupStorageService storageService,
             RestoreAuditService auditService,
-            MeterRegistry meterRegistry,
+            BackupMetricsService metricsService,
             PostgresDatabaseRestorer postgresRestorer,
             MongoDatabaseRestorer mongoRestorer) {
         this.backupProperties = backupProperties;
         this.storageService = storageService;
         this.auditService = auditService;
-        this.meterRegistry = meterRegistry;
+        this.metricsService = metricsService;
         this.postgresRestorer = postgresRestorer;
         this.mongoRestorer = mongoRestorer;
     }
@@ -116,7 +115,7 @@ public class RestoreOrchestratorService {
         }
 
         long elapsedMillis = elapsedMillis(startNanos);
-        recordMetrics(target, success, elapsedMillis);
+        metricsService.recordRestoreExecution(target, success, elapsedMillis);
         auditService.record(RestoreAuditService.RestoreAuditEntry.of(
                 EVENT_RESTORE, target.name(), filePath, sha256, success, elapsedMillis, message));
 
@@ -205,15 +204,6 @@ public class RestoreOrchestratorService {
             case MINIO_BUCKETS -> throw new IllegalArgumentException(
                     "MINIO_BUCKETS não é um alvo de restauração de banco de dados");
         };
-    }
-
-    private void recordMetrics(DatabaseTarget target, boolean success, long elapsedMillis) {
-        meterRegistry.counter("backup_restore_total",
-                        "target", target.name(),
-                        "outcome", success ? "success" : "failure")
-                .increment();
-        meterRegistry.timer("backup_restore_duration_seconds", "target", target.name())
-                .record(Duration.ofMillis(elapsedMillis));
     }
 
     private static long elapsedMillis(long startNanos) {

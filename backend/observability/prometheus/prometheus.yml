@@ -28,6 +28,17 @@ scrape_configs:
       - targets: ["reporting-service:8000"]
     metrics_path: /metrics
 
+  # ─── Backup / Disaster Recovery ────────────────────────────────
+  # Expõe as métricas padronizadas do backup-service via Spring Boot Actuator
+  # (backup_execution_duration_seconds, backup_status_total,
+  #  backup_artifact_size_bytes, backup_last_success_timestamp_seconds,
+  #  backup_retention_deleted_total, backup_restore_duration_seconds).
+  - job_name: backup-service
+    metrics_path: /actuator/prometheus
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["backup-service:8000"]
+
   # ─── RabbitMQ ─────────────────────────────────────────────────
   # RabbitMQ 3.13 management plugin exposes Prometheus metrics natively
   - job_name: rabbitmq
