@@ -118,14 +118,14 @@ seed: ## Populate database with realistic simulated data (500 users)
 backup: ## Start the backup service (scheduled mode)
 	$(COMPOSE) up -d backup-service
 
-backup-once: ## Run a single backup cycle immediately
-	$(COMPOSE) run --rm backup-service python backup_runner.py --once
+backup-once: ## Run a single backup cycle immediately (Java)
+	$(COMPOSE) run --rm backup-service java -jar app.jar --once
 
-restore-db: ## Restore PostgreSQL from a local backup file. Usage: make restore-db FILE=path/to/file.sql.gz TARGET=iam_db
-	$(COMPOSE) run --rm backup-service python backup_runner.py --restore --kind postgres --file $(FILE) --target $(TARGET)
+restore-db: ## Restore PostgreSQL from a local backup file. Usage: make restore-db FILE=path/to/file.sql.gz TARGET=iam_db (Java)
+	$(COMPOSE) run --rm backup-service java -jar app.jar --restore --kind postgres --target $(TARGET) --file $(FILE)
 
-restore-mongo: ## Restore MongoDB from a local backup archive. Usage: make restore-mongo FILE=path/to/file.archive.gz TARGET=ai_db
-	$(COMPOSE) run --rm backup-service python backup_runner.py --restore --kind mongo --file $(FILE) --target $(TARGET)
+restore-mongo: ## Restore MongoDB from a local backup archive. Usage: make restore-mongo FILE=path/to/file.archive.gz TARGET=ai_db (Java)
+	$(COMPOSE) run --rm backup-service java -jar app.jar --restore --kind mongo --target $(TARGET) --file $(FILE)
 
 status: ## Show the latest backup status report
 	@$(COMPOSE) exec -T backup-service sh -lc 'cat /var/backups/status.json 2>/dev/null || echo "Nenhum status disponível"'
