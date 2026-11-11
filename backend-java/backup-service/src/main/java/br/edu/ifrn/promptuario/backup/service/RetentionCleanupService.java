@@ -1,6 +1,7 @@
 package br.edu.ifrn.promptuario.backup.service;
 
 import br.edu.ifrn.promptuario.backup.config.BackupProperties;
+import br.edu.ifrn.promptuario.backup.metrics.BackupMetricsService;
 import br.edu.ifrn.promptuario.backup.storage.S3BackupStorageService;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -35,10 +36,15 @@ public class RetentionCleanupService {
 
     private final BackupProperties backupProperties;
     private final S3BackupStorageService storageService;
+    private final BackupMetricsService metricsService;
 
-    public RetentionCleanupService(BackupProperties backupProperties, S3BackupStorageService storageService) {
+    public RetentionCleanupService(
+            BackupProperties backupProperties,
+            S3BackupStorageService storageService,
+            BackupMetricsService metricsService) {
         this.backupProperties = backupProperties;
         this.storageService = storageService;
+        this.metricsService = metricsService;
     }
 
     /**
@@ -66,6 +72,7 @@ public class RetentionCleanupService {
         }
 
         int total = localRemoved + remoteRemoved;
+        metricsService.recordRetentionDeleted(total);
         log.info("Limpeza de retenção concluída: {} artefato(s) local(is) e {} objeto(s) no MinIO",
                 localRemoved, remoteRemoved);
         return total;

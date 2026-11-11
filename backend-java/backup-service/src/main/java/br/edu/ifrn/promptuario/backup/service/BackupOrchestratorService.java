@@ -4,6 +4,7 @@ import br.edu.ifrn.promptuario.backup.config.BackupProperties;
 import br.edu.ifrn.promptuario.backup.dumper.DatabaseDumper;
 import br.edu.ifrn.promptuario.backup.dumper.MongoDatabaseDumper;
 import br.edu.ifrn.promptuario.backup.dumper.PostgresDatabaseDumper;
+import br.edu.ifrn.promptuario.backup.metrics.BackupMetricsService;
 import br.edu.ifrn.promptuario.backup.model.BackupJobExecution;
 import br.edu.ifrn.promptuario.backup.model.BackupKind;
 import br.edu.ifrn.promptuario.backup.model.BackupManifest;
@@ -44,6 +45,7 @@ public class BackupOrchestratorService {
     private final S3BackupStorageService storageService;
     private final StatusReportService statusReportService;
     private final RetentionCleanupService retentionCleanupService;
+    private final BackupMetricsService metricsService;
     private final PostgresDatabaseDumper postgresDumper;
     private final MongoDatabaseDumper mongoDumper;
 
@@ -53,6 +55,7 @@ public class BackupOrchestratorService {
             S3BackupStorageService storageService,
             StatusReportService statusReportService,
             RetentionCleanupService retentionCleanupService,
+            BackupMetricsService metricsService,
             PostgresDatabaseDumper postgresDumper,
             MongoDatabaseDumper mongoDumper) {
         this.backupProperties = backupProperties;
@@ -60,6 +63,7 @@ public class BackupOrchestratorService {
         this.storageService = storageService;
         this.statusReportService = statusReportService;
         this.retentionCleanupService = retentionCleanupService;
+        this.metricsService = metricsService;
         this.postgresDumper = postgresDumper;
         this.mongoDumper = mongoDumper;
     }
@@ -89,7 +93,12 @@ public class BackupOrchestratorService {
 
         // 2. Dump de cada alvo com isolamento total de falhas.
         for (DatabaseTarget target : DUMP_ORDER) {
-            execution.addResult(runIsolated(target, mode));
+            long targetStartNanos = System.nanoTime();
+            DatabaseBackupResult result = runIsolated(target, mode);
+            execution.addResult(result);
+            // Observabilidade em tempo real: duração, status, tamanho e último sucesso.
+            metricsService.recordBackupExecution(
+                    target, result.isSuccess(), elapsedMillis(targetStartNanos), result.sizeBytes());
         }
 
         execution.finish();
@@ -142,6 +151,10 @@ public class BackupOrchestratorService {
 
     private static BackupKind kindOf(DatabaseTarget target) {
         return target == DatabaseTarget.MONGO_AI_DB ? BackupKind.MONGO : BackupKind.POSTGRES;
+    }
+
+    private static long elapsedMillis(long startNanos) {
+        return (System.nanoTime() - startNanos) / 1_000_000L;
     }
 
     private BackupManifest buildManifest(BackupJobExecution execution) {
