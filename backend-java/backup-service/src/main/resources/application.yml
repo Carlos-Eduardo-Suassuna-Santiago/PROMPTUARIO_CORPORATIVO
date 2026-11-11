@@ -29,6 +29,7 @@ promptuario:
     root-dir: "${BACKUP_ROOT_DIR:/var/backups}"
     encryption-enabled: "${BACKUP_ENCRYPTION_ENABLED:true}"
     encryption-secret: "${BACKUP_ENCRYPTION_KEY:PROMPTUARIO_AES_256_SECRET_KEY_SAMPLE_32B}"
+    dump-timeout-seconds: "${BACKUP_DUMP_TIMEOUT_SECONDS:600}"
 
     # Topologia unificada pós-Fase 12 (nunca db-patient / db-clinical)
     postgres:
