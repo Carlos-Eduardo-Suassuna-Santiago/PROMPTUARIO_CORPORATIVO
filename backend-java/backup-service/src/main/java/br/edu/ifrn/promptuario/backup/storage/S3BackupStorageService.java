@@ -2,6 +2,9 @@ package br.edu.ifrn.promptuario.backup.storage;
 
 import br.edu.ifrn.promptuario.backup.config.StorageProperties;
 import br.edu.ifrn.promptuario.backup.model.BackupKind;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -13,10 +16,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.Delete;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.NoSuchBucketException;
@@ -131,6 +136,30 @@ public class S3BackupStorageService {
         }
         log.info("Retenção MinIO: {} objeto(s) expirado(s) removido(s).", removed);
         return removed;
+    }
+
+    /**
+     * Baixa um artefato do MinIO para um caminho local (diretório de staging),
+     * permitindo restaurar diretamente a partir de uma chave remota.
+     *
+     * @return o caminho local gravado
+     */
+    public Path downloadArtifact(String key, Path destination) {
+        try {
+            if (destination.getParent() != null) {
+                Files.createDirectories(destination.getParent());
+            }
+            GetObjectRequest request = GetObjectRequest.builder()
+                    .bucket(defaultBucket())
+                    .key(key)
+                    .build();
+            s3Client.getObject(request, ResponseTransformer.toFile(destination));
+            log.info("Artefato baixado do MinIO: s3://{}/{} -> {}", defaultBucket(), key, destination);
+            return destination;
+        } catch (IOException e) {
+            throw new UncheckedIOException(
+                    "Falha ao preparar o destino de staging " + destination + ": " + e.getMessage(), e);
+        }
     }
 
     private void createBucket(String bucketName) {
