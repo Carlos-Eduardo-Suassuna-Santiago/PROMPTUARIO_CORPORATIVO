@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import br.edu.ifrn.promptuario.backup.config.BackupProperties;
+import br.edu.ifrn.promptuario.backup.metrics.BackupMetricsService;
 import br.edu.ifrn.promptuario.backup.model.DatabaseTarget;
 import br.edu.ifrn.promptuario.backup.restorer.MongoDatabaseRestorer;
 import br.edu.ifrn.promptuario.backup.restorer.PostgresDatabaseRestorer;
@@ -34,6 +35,7 @@ class RestoreOrchestratorServiceTest {
     private PostgresDatabaseRestorer postgres;
     private MongoDatabaseRestorer mongo;
     private RestoreAuditService auditService;
+    private BackupMetricsService metricsService;
     private SimpleMeterRegistry meterRegistry;
     private RestoreOrchestratorService orchestrator;
 
@@ -43,10 +45,11 @@ class RestoreOrchestratorServiceTest {
         postgres = mock(PostgresDatabaseRestorer.class);
         mongo = mock(MongoDatabaseRestorer.class);
         meterRegistry = new SimpleMeterRegistry();
+        metricsService = new BackupMetricsService(meterRegistry);
         auditService = new RestoreAuditService(
                 properties(), new ObjectMapper().registerModule(new JavaTimeModule()));
         orchestrator = new RestoreOrchestratorService(
-                properties(), storage, auditService, meterRegistry, postgres, mongo);
+                properties(), storage, auditService, metricsService, postgres, mongo);
     }
 
     private BackupProperties properties() {
@@ -154,7 +157,7 @@ class RestoreOrchestratorServiceTest {
         assertThat(outcome.message()).contains("psql falhou");
         assertThat(auditService.readEntries()).hasSize(1);
         assertThat(auditService.readEntries().get(0).success()).isFalse();
-        assertThat(meterRegistry.counter("backup_restore_total",
-                "target", "PATIENT_CLINICAL_DB", "outcome", "failure").count()).isEqualTo(1.0d);
+        assertThat(meterRegistry.counter(BackupMetricsService.METRIC_STATUS,
+                "target", "PATIENT_CLINICAL_DB", "status", "failed").count()).isEqualTo(1.0d);
     }
 }
