@@ -144,8 +144,8 @@ services:
     ports:
       - "8001:8000"
     networks: [ backend ]
-
-
+  # The prescription PDF worker is an internal Spring AMQP @RabbitListener.
+  # Do not add a separate patient-clinical worker container.
   patient-clinical-service:
     build:
       context: ../backend-java/patient-clinical-service
