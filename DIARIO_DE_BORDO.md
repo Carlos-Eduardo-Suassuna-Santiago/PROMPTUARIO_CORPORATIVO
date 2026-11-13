@@ -1074,6 +1074,83 @@ O cutover do `backup-service` de Python para Java 21 foi concluído: CLI com Pic
 Foi concluída a migração inicial Flyway do `patient-clinical-service`, cobrindo todo o modelo JPA e os índices usados pelos repositórios. A V1 foi validada em PostgreSQL 15 limpo, passou pela validação do Hibernate e permaneceu idempotente sob o controle de versão do Flyway na segunda inicialização. Durante o teste foi identificado e corrigido um ciclo de dependência no bootstrap do S3. O build Maven e a imagem Docker foram concluídos com sucesso; permanece como limitação ambiental a incompatibilidade entre Testcontainers 1.20.1 e a versão atual do daemon Docker, além de ficarem pendentes para os próximos prompts a validação do MinIO, AI Python e Docker Compose completo.
 
 ---
+
+## 2026-11-13 — Compatibilidade dos Eventos RabbitMQ entre Java e Python
+
+### 📋 Implementação Proposta
+
+- Implementar publicação dupla temporária dos eventos `MedicalRecordCreated` e `PrescriptionGenerated` nos contratos novo e legado.
+- Preservar o mesmo `eventId`, `timestamp`, `correlationId` e payload nas duas publicações.
+- Aceitar aliases camelCase e snake_case nos modelos Java e Python.
+- Adicionar headers de envelope, retry para falhas transitórias, logs estruturados, feature flag e idempotência dos consumidores Python por `eventId`.
+- Criar testes de contrato que comparem o JSON produzido pelo Java com os modelos Pydantic compartilhados.
+
+---
+
+### ✅ O que foi Implementado
+
+- **Publicação dupla em `EventPublisher.java`**:
+  - Contrato novo em `domain.events`, usando `medical_record.created` e `prescription.generated`.
+  - Contrato legado em `promptuario.clinical`, usando `clinical.medical_record.created` e `clinical.prescription.generated`.
+  - Reutilização da mesma instância do evento nas duas publicações, mantendo envelope e payload equivalentes.
+  - Headers `eventId`, `eventType`, `timestamp` e `correlationId`, além de `messageId` e `correlationId` nas propriedades AMQP.
+  - Seleção de destinos por `LinkedHashSet`, impedindo publicação lógica duplicada no mesmo par exchange/routing key.
+  - Logs estruturados com tipo da publicação, exchange, routing key, evento e correlação.
+  - Feature flag `app.messaging.legacy-publish-enabled`, habilitada por padrão e restrita às rotas clínicas canônicas.
+- **Envelope Java `DomainEvent`**:
+  - Criado contrato tipado para `eventId`, `timestamp`, `eventType` e `correlationId`.
+  - Eventos Java de patient e clinical passaram a implementar o envelope comum.
+  - `MedicalRecordCreatedEvent` e `PrescriptionGeneratedEvent` passaram a emitir JSON canônico camelCase e aceitar os aliases legados snake_case com `@JsonAlias`.
+- **Configuração RabbitMQ**:
+  - Exchanges, filas e bindings permanentes mantidos como duráveis.
+  - Retry configurado somente para `AmqpConnectException`, `AmqpIOException`, `AmqpResourceNotAvailableException` e `AmqpTimeoutException`, com três tentativas e backoff exponencial.
+  - `Jackson2JsonMessageConverter` passou a reutilizar o `ObjectMapper` do Spring Boot, serializando `Instant` em ISO-8601.
+- **Contratos Python compartilhados**:
+  - `DomainEvent` passou a aceitar `eventId/event_id`, `eventType/event_type` e `correlationId/correlation_id`.
+  - Os dois eventos clínicos aceitam aliases camelCase e snake_case para todos os campos enviados pelo Java.
+  - Listas mutáveis passaram a usar `default_factory`.
+  - O publisher Python também passou a enviar os quatro headers do envelope.
+  - `domain.events` foi incluído entre os exchanges duráveis declarados pelo broker compartilhado.
+- **Idempotência Python**:
+  - O consumidor resolve o identificador primeiro pelos headers, depois pelo corpo camelCase/snake_case e, por compatibilidade, pelo `message_id`.
+  - Entregas concorrentes do mesmo evento são serializadas por `asyncio.Lock`.
+  - Eventos já processados são ignorados por uma cache limitada a 10.000 `eventId`, evitando crescimento ilimitado em memória.
+- **Consumidores legados preservados**:
+  - O AI Python e o Reporting Service passaram a validar os eventos pelos modelos Pydantic, sem alteração de endpoints públicos.
+  - O AI Service permanece em Python e continua consumindo as rotas legadas.
+- **Testes de contrato e configuração**:
+  - Fixtures compartilhadas para prontuário e prescrição.
+  - Testes Java de serialização, aliases, igualdade dos payloads, headers, duas rotas, feature flag, durabilidade e retry.
+  - Testes Python de compatibilidade dos fixtures Java, aliases legados e resolução do `eventId`.
+
+---
+
+### ❌ O que deu Erro
+
+- O host não possui Maven instalado; a suíte Java precisou ser executada com a imagem `maven:3.9-eclipse-temurin-21-alpine`.
+- A primeira compilação dos testes encontrou uma ambiguidade de inferência do AssertJ em `valueToTree`; o resultado foi tipado explicitamente como `JsonNode`.
+- O `ObjectMapper` isolado do conversor RabbitMQ inicialmente serializava `Instant` como epoch. O conversor foi alinhado ao `ObjectMapper` configurado pelo Spring Boot, produzindo ISO-8601.
+- A tentativa de integração real via Testcontainers não iniciou PostgreSQL, RabbitMQ e MinIO: o `docker-java` do Testcontainers 1.20.1 insistiu em usar a API 1.32, rejeitada pelo daemon, que exige no mínimo a API 1.40. A tentativa permaneceu ignorada por `disabledWithoutDocker`.
+
+---
+
+### 🟢 O que Funcionou
+
+- `mvn -q clean test` em Docker: 9 testes aprovados e 1 teste Testcontainers ignorado.
+- Testes de contrato Python em `python:3.12-slim`: 4 testes aprovados.
+- As duas rotas de prontuário e prescrição foram verificadas, com corpos JSON equivalentes e os mesmos dados de envelope.
+- O retry transitório realizou três tentativas, enquanto erros de programação não foram repetidos.
+- `docker compose -f backend-java/docker-compose.yml config --quiet` validou a configuração do Compose.
+- `python3 -m compileall -q` e `git diff --check` terminaram sem erros.
+- Implementação registrada no commit `dbdc7c3` (`feat(patient-clinical): implementa compatibilidade de eventos RabbitMQ entre Java e Python`) e enviada para `origin/feature/patient-clinical-rabbitmq-event-compatibility`.
+
+---
+
+### 📝 Resumo do Dia
+
+A ponte temporária RabbitMQ entre o novo contrato Java e os consumidores legados Python foi concluída. Os eventos clínicos são publicados uma vez em cada destino com envelope e payload equivalentes, e os consumidores aceitam camelCase e snake_case sem mudanças nos endpoints públicos do AI Service. Foram adicionados contratos tipados, retry seletivo, logs estruturados, headers AMQP, feature flag e deduplicação por `eventId`. As suítes Java e Python passaram; permanece como limitação ambiental a incompatibilidade da API Docker usada pelo Testcontainers e, arquiteturalmente, a cache de idempotência Python é local ao processo e não sobrevive a reinicializações.
+
+---
 <!-- TEMPLATE PARA NOVO DIA — Copie o bloco abaixo ao iniciar uma nova entrada -->
 
 <!--

@@ -1,8 +1,10 @@
-.PHONY: help up down logs build restart test lint clean seed backup backup-once restore-db restore-mongo status
+.PHONY: help up down logs build restart test lint clean seed backup backup-once restore-db restore-mongo status \
+	dev-ai test-ai dev-patient-clinical test-patient-clinical
 
 # ─── Config ───────────────────────────────────────────────────────────────────
 COMPOSE = docker compose
 SERVICES = gateway iam-service patient-clinical-service ai-service reporting-service reporting-worker
+TEST_JWT_SECRET_KEY ?= test-only-secret-key-with-at-least-32-characters
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -60,9 +62,11 @@ dev-iam: ## Run IAM service locally (no Docker)
 	cd iam-service && PYTHONPATH=/home/$(USER)/promptuario-backend \
 		uvicorn app.main:app --reload --port 8001
 
-dev-patient-clinical: ## Run Patient-Clinical service locally (no Docker)
-	cd patient-clinical-service && PYTHONPATH=/home/$(USER)/promptuario-backend \
-		uvicorn app.main:app --reload --port 8002
+dev-ai: ## Build and run the Python AI service with its Compose dependencies
+	$(COMPOSE) up --build ai-service
+
+dev-patient-clinical: ## Build and run the Java service with its internal Spring AMQP worker
+	$(COMPOSE) up --build patient-clinical-service
 
 dev-gateway: ## Run Gateway locally (no Docker)
 	cd gateway && PYTHONPATH=/home/$(USER)/promptuario-backend \
@@ -70,15 +74,20 @@ dev-gateway: ## Run Gateway locally (no Docker)
 
 # ─── Testing ──────────────────────────────────────────────────────────────────
 
-test: ## Run all unit tests
-	@echo "🧪 Running IAM tests..."
-	cd iam-service && python -m pytest tests/ -v --tb=short 2>&1 || true
-	@echo "🧪 Running Patient-Clinical tests..."
-	cd patient-clinical-service && python -m pytest tests/ -v --tb=short 2>&1 || true
-	@echo "✅ Tests complete"
+test: ## Run Java IAM, Java Patient-Clinical, and Python AI tests
+	cd iam-service && mvn clean test
+	$(MAKE) test-patient-clinical
+	$(MAKE) test-ai
 
-test-svc: ## Test a specific service: make test-svc SVC=iam-service
-	cd $(SVC) && python -m pytest tests/ -v --tb=short
+test-svc: ## Test a specific Java service: make test-svc SVC=iam-service
+	cd $(SVC) && mvn clean test
+
+test-ai: ## Run the Python AI service tests
+	cd ai-service && JWT_SECRET_KEY=$(TEST_JWT_SECRET_KEY) PYTHONPATH=.. \
+		python -m pytest tests/ -m "not integration" -o asyncio_mode=auto -v --tb=short
+
+test-patient-clinical: ## Run the Java Patient-Clinical tests (includes Spring AMQP worker context)
+	cd patient-clinical-service && mvn clean test
 
 smoke-auth: ## Run the terminal smoke test for auth flow
 	python scripts/insomnia_auth_smoke.py
