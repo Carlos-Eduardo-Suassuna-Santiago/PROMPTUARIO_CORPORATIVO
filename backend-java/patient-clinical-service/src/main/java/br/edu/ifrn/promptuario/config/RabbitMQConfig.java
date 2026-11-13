@@ -1,9 +1,14 @@
 package br.edu.ifrn.promptuario.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.TopicExchange;
+import org.springframework.amqp.AmqpConnectException;
+import org.springframework.amqp.AmqpIOException;
+import org.springframework.amqp.AmqpResourceNotAvailableException;
+import org.springframework.amqp.AmqpTimeoutException;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
@@ -15,6 +20,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.retry.support.RetryTemplate;
 
 import java.util.concurrent.Executor;
+import java.util.List;
 
 @Configuration
 @EnableAsync
@@ -110,8 +116,9 @@ public class RabbitMQConfig {
     }
 
     @Bean
-    public Jackson2JsonMessageConverter rabbitMessageConverter() {
-        return new Jackson2JsonMessageConverter();
+    public Jackson2JsonMessageConverter rabbitMessageConverter(ObjectMapper objectMapper) {
+        // Reuse Spring Boot's Java-time configuration so Instant is emitted as ISO-8601.
+        return new Jackson2JsonMessageConverter(objectMapper);
     }
 
     @Bean
@@ -127,6 +134,11 @@ public class RabbitMQConfig {
         return RetryTemplate.builder()
                 .maxAttempts(3)
                 .exponentialBackoff(250, 2.0, 2000)
+                .retryOn(List.of(
+                        AmqpConnectException.class,
+                        AmqpIOException.class,
+                        AmqpResourceNotAvailableException.class,
+                        AmqpTimeoutException.class))
                 .build();
     }
 

@@ -1,0 +1,14 @@
+{
+  "eventId": "11111111-1111-1111-1111-111111111111",
+  "timestamp": "2026-01-15T12:30:45Z",
+  "eventType": "MedicalRecordCreated",
+  "correlationId": "corr-medical-001",
+  "recordId": "record-001",
+  "appointmentId": "appointment-001",
+  "patientId": "patient-001",
+  "doctorId": "doctor-001",
+  "chiefComplaint": "Febre e cefaleia",
+  "diagnosisCodes": ["R50.9", "R51.9"],
+  "prescriptionsCount": 1,
+  "examRequestsCount": 2
+}
