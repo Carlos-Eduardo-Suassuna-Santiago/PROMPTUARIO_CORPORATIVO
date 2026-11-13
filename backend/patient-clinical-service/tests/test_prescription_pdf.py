@@ -158,8 +158,7 @@ class TestPrescriptionCreate:
         )
 
         with patch("app.domain.services.clinical_service._generate_prescription_pdf") as mock_gen_pdf, \
-             patch("app.domain.services.clinical_service._upload_pdf_to_s3") as mock_upload, \
-             patch("celery.app.task.Task.apply_async") as mock_delay:
+             patch("app.domain.services.clinical_service._upload_pdf_to_s3") as mock_upload:
 
             mock_gen_pdf.return_value = b"%PDF-1.4 fake content"
             mock_upload.return_value = f"prescriptions/{str(uuid.uuid4())[:2]}/{uuid.uuid4()}.pdf"
@@ -184,8 +183,7 @@ class TestPrescriptionCreate:
 
     async def test_create_without_pdf_when_disabled(self, prescription_service, mock_session):
         """Should skip PDF generation when disabled in settings."""
-        with patch.object(settings, "PDF_GENERATION_ENABLED", False), \
-             patch("celery.app.task.Task.apply_async"):
+        with patch.object(settings, "PDF_GENERATION_ENABLED", False):
             data = PrescriptionCreate(
                 medications=[MedicationItem(name="Dipirona", dosage="500mg", frequency="6/6h")],
                 valid_days=30,

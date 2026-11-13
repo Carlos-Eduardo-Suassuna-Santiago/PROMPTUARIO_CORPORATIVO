@@ -32,7 +32,7 @@ No `docker-compose.yml`, cada microserviço escuta em `8000` dentro do container
 | BD Documentos| MongoDB 7 (Motor async)                 |
 | Cache        | Redis 7                                 |
 | Storage      | MinIO (S3-compatible)                   |
-| Workers      | Celery 5 + Redis broker                 |
+| Workers      | Spring AMQP interno (Patient-Clinical) + Celery (Reporting) |
 | Containers   | Docker + Docker Compose                 |
 
 ## Pré-requisitos
@@ -328,11 +328,10 @@ promptuario-backend/
 │   │   ├── domain/
 │   │   └── infrastructure/
 │   └── tests/
-├── patient-service/           # Patient Service (porta 8002)
-├── clinical-service/          # Clinical Service (porta 8003)
-├── ai-service/                # AI Service (porta 8004)
+├── patient-clinical-service/  # Java 21 + worker Spring AMQP interno (porta 8002)
+├── ai-service/                # AI Python preservado (porta 8004)
 └── reporting-service/         # Reporting Service (porta 8005)
-    ├── app/workers/           # Celery tasks
+    ├── app/workers/           # Tarefas Celery exclusivas do Reporting
     └── Dockerfile.worker
 ```
 
@@ -360,6 +359,10 @@ make test
 
 # Serviço específico
 make test-svc SVC=iam-service
+
+# Serviços preservados/migrados
+make test-ai
+make test-patient-clinical
 
 # Com coverage
 cd iam-service && pytest tests/ --cov=app --cov-report=html
@@ -390,6 +393,10 @@ Set-Location ..
 ```bash
 # 1. Suba apenas a infraestrutura
 make infra-up
+
+# Fluxos focados (cada comando inclui as dependências do Compose)
+make dev-ai
+make dev-patient-clinical
 
 # 2. Instale dependências localmente
 cd iam-service && pip install -r requirements.txt

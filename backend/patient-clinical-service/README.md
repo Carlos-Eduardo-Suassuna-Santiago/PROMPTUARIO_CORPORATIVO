@@ -1,17 +1,18 @@
-# PROMPTUARIO — Patient-Clinical Service
+# PROMPTUARIO — Patient-Clinical Service Python (legado)
 
 Serviço unificado que reúne o **Patient Service** e o **Clinical Service** em um
 único microserviço, preservando os contratos externos (URLs, campos, códigos
 HTTP, eventos e buckets) dos serviços legados.
 
-> **Fase 1 — em construção.** Este serviço foi criado **sem remover** os
-> serviços antigos (`patient-service` e `clinical-service`), que continuam
-> ativos e são o caminho de rollback durante toda a migração.
+> **Implementação legada para rollback.** O serviço ativo está em
+> `backend-java/patient-clinical-service` e é iniciado pelo Compose como um
+> único container Java. A geração assíncrona de PDFs roda no mesmo processo,
+> por meio de um `@RabbitListener` Spring AMQP.
 
 ## Contexto no ecossistema Promptuário
 
 ```
-Gateway (:8000) → Patient-Clinical Service (:8000 interno) → PostgreSQL / RabbitMQ / Redis / MinIO
+Gateway (:8000) → Patient-Clinical Java (:8000 interno) → PostgreSQL / RabbitMQ / MinIO
 ```
 
 Porta padrão do serviço: `8000` (atrás do API Gateway, que expõe `:8000`).
@@ -34,7 +35,6 @@ app/
 │   ├── events/                # consumidores IAM + sincronização Patient
 │   ├── repositories/          # patient_repository.py + clinical_repository.py
 │   └── s3/                    # cliente S3/MinIO
-└── workers/                   # Celery (PDF de prescrições)
 ```
 
 ## Endpoints preservados
@@ -76,12 +76,12 @@ Consome:
 
 ## Pré-requisitos
 
-- PostgreSQL, RabbitMQ, Redis e MinIO disponíveis
+- PostgreSQL, RabbitMQ e MinIO disponíveis
 - Python 3.12+
 
 ## Início rápido
 
-### Desenvolvimento local (sem Docker)
+### Desenvolvimento local da implementação legada (sem Docker)
 
 ```bash
 cd backend/patient-clinical-service
@@ -89,22 +89,22 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-### Com Docker Compose
+### Implementação ativa com Docker Compose
 
-> A entrada no `docker-compose.yml` (serviço + worker + banco) é adicionada em
-> uma fase posterior da migração.
+O Compose constrói somente `patient-clinical-service`. O listener Spring AMQP
+de geração de PDF faz parte do mesmo JAR e não requer container separado.
 
 ```bash
 cd backend
-docker compose build patient-clinical-service
+make dev-patient-clinical
 ```
 
-### Worker Celery (geração de PDF de prescrições)
+### Worker Spring AMQP de prescrições
 
-```bash
-cd backend/patient-clinical-service
-celery -A app.workers.celery_app.celery_app worker --loglevel=info -Q celery
-```
+O worker ativo é `PrescriptionPdfWorker`, localizado em
+`backend-java/patient-clinical-service`. Ele é iniciado automaticamente pelo
+Spring Boot junto com a API e consome a fila durável
+`prescription.pdf.generation`.
 
 ## Testes
 
@@ -129,11 +129,10 @@ de comportamento.
 | `S3_ACCESS_KEY` / `S3_SECRET_KEY` | Credenciais MinIO                        | —              |
 | `S3_BUCKET_PATIENT_DOCUMENTS`   | Bucket de documentos de pacientes          | `patient-documents` |
 | `S3_BUCKET_PRESCRIPTIONS`       | Bucket de prescrições                      | `prescriptions` |
-| `CELERY_BROKER_URL`             | Broker do Celery (Redis)                   | `redis://localhost:6379/3` |
 | `APPOINTMENT_CANCEL_HOURS_MIN`  | Horas mínimas para cancelamento            | `24`           |
 
 ## Rollback
 
-Enquanto a migração não é concluída, o Gateway continua podendo apontar para
-`patient-service` e `clinical-service`. Este serviço é aditivo e não altera os
-serviços antigos, permitindo reverter o corte sem perda de dados.
+Este diretório Python é mantido apenas como referência de rollback. O Gateway e
+os dois arquivos Compose apontam para a implementação Java unificada; nenhum
+worker ou configuração Celery do Patient-Clinical deve ser reintroduzido.

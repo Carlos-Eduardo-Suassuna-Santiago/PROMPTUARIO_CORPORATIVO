@@ -1151,6 +1151,79 @@ Foi concluída a migração inicial Flyway do `patient-clinical-service`, cobrin
 A ponte temporária RabbitMQ entre o novo contrato Java e os consumidores legados Python foi concluída. Os eventos clínicos são publicados uma vez em cada destino com envelope e payload equivalentes, e os consumidores aceitam camelCase e snake_case sem mudanças nos endpoints públicos do AI Service. Foram adicionados contratos tipados, retry seletivo, logs estruturados, headers AMQP, feature flag e deduplicação por `eventId`. As suítes Java e Python passaram; permanece como limitação ambiental a incompatibilidade da API Docker usada pelo Testcontainers e, arquiteturalmente, a cache de idempotência Python é local ao processo e não sobrevive a reinicializações.
 
 ---
+
+## 2026-11-13 — Remoção do Worker Celery Legado do Patient-Clinical
+
+### 📋 Implementação Proposta
+
+- Remover referências ao container `patient-clinical-worker` e ao Celery usado exclusivamente pelo Patient-Clinical.
+- Preservar o AI Service em Python, o Redis utilizado pelo AI, RabbitMQ e os workers Celery pertencentes ao Reporting Service.
+- Garantir que API e worker Spring AMQP do Patient-Clinical Java sejam executados em um único container.
+- Disponibilizar comandos claros para desenvolvimento e testes isolados do AI e do Patient-Clinical.
+- Validar sintaticamente os arquivos `backend-java/docker-compose.yml` e `backend/docker-compose.yml`.
+
+---
+
+### ✅ O que foi Implementado
+
+- **Execução unificada do Patient-Clinical Java**:
+  - Os dois arquivos Compose mantêm somente o serviço `patient-clinical-service`, construído a partir de `backend-java/patient-clinical-service`.
+  - Documentado que `PrescriptionPdfWorker` é um `@RabbitListener` iniciado dentro do mesmo processo Spring Boot da API.
+  - Nenhum container separado `patient-clinical-worker` é necessário ou declarado.
+- **Remoção do worker Python obsoleto**:
+  - Excluído `backend/patient-clinical-service/Dockerfile.worker`.
+  - Excluídos `app/workers/celery_app.py`, `app/workers/prescription_tasks.py` e o `__init__.py` exclusivo do pacote antigo.
+  - Removido do `PrescriptionService` o disparo `generate_prescription_pdf.delay(...)`, que era redundante após a geração síncrona do legado e não participa do fluxo Java ativo.
+  - Removidas as configurações `CELERY_BROKER_URL` e `CELERY_RESULT_BACKEND` do Patient-Clinical Python legado.
+  - Removidas as dependências `celery`, `redis[asyncio]` e `psycopg2-binary`, usadas exclusivamente pelo worker antigo.
+  - Testes do legado atualizados para não aplicar patches sobre APIs Celery removidas.
+- **Comandos Make adicionados/atualizados**:
+  - `make dev-ai` inicia o AI Python e suas dependências pelo Compose.
+  - `make test-ai` fornece uma chave JWT local, exclui o teste de integração externa e configura `asyncio_mode=auto`.
+  - `make dev-patient-clinical` constrói e inicia o único container Java com o listener Spring AMQP interno.
+  - `make test-patient-clinical` executa `mvn clean test` no serviço Java.
+  - O comando geral de testes deixou de tentar executar `pytest` dentro do Patient-Clinical Java.
+- **Documentação**:
+  - READMEs gerais passaram a distinguir o worker Spring AMQP interno do Patient-Clinical dos workers Celery exclusivos do Reporting.
+  - O README do serviço Python foi marcado como implementação legada para rollback.
+  - Criado `backend-java/patient-clinical-service/README.md` com arquitetura de processo único, fila, retry, DLQ e comandos operacionais.
+- **Componentes preservados**:
+  - AI Service Python e seu `REDIS_URL` permaneceram inalterados.
+  - RabbitMQ e MinIO permaneceram como dependências do Patient-Clinical Java.
+  - `reporting-worker`, `reporting-beat`, seus Dockerfiles, configurações Celery e Redis DB 1 foram preservados.
+
+---
+
+### ❌ O que deu Erro
+
+- A primeira tentativa de `test-ai` não chegou à coleta porque `JWT_SECRET_KEY` não estava definida; o alvo Make passou a fornecer uma chave exclusiva de teste.
+- A segunda tentativa revelou que a suíte dependia de `asyncio_mode=auto` e tentava executar um teste de integração contra `localhost:8000`; o alvo unitário passou a excluir o marcador `integration` e habilitar o modo asyncio.
+- Após esses ajustes, a suíte AI executou 46 testes unitários, com 44 aprovados e 2 falhas preexistentes:
+  - `TestAnalysisTimeout.test_timeout_sets_job_to_failed`: o teste espera a mensagem original `Timed out`, mas o serviço persiste `Analysis timed out after 120s`.
+  - `TestJobLifecycle.test_list_by_record`: o mock assíncrono de `find().sort()` retorna uma coroutine incompatível com a chamada `to_list()` do serviço.
+- O `PatientClinicalIntegrationTest` continuou ignorado na execução Maven padrão porque o Docker não está disponível dentro do container Maven; os nove testes unitários/contratuais passaram.
+
+---
+
+### 🟢 O que Funcionou
+
+- `docker compose -f backend-java/docker-compose.yml config` terminou com sucesso.
+- `docker compose -f backend/docker-compose.yml config` terminou com sucesso.
+- `config --services` confirmou, nos dois projetos, somente `db-patient-clinical` e um único `patient-clinical-service` relacionado ao domínio.
+- A imagem `backend-java-patient-clinical-service:latest` foi construída com sucesso pelo Dockerfile multi-stage Java 21.
+- `mvn -q clean test` executado em Maven/Java 21 via Docker aprovou 9 testes e ignorou apenas o Testcontainers condicionado.
+- `python3 -m compileall -q` validou o código Python remanescente após a remoção dos módulos do worker.
+- `make -n` confirmou a expansão correta dos quatro novos comandos nos diretórios `backend-java/` e `backend/`.
+- `git diff --check` não encontrou erros de whitespace.
+- A atualização central de Makefile e Compose foi registrada no commit `56db0f8` (`refactor(patient-clinical): remove referências obsoletas ao Celery e atualiza comandos de desenvolvimento`).
+
+---
+
+### 📝 Resumo do Dia
+
+O worker Celery exclusivo do Patient-Clinical foi retirado do fluxo atual e do código Python legado, enquanto os workers Celery do Reporting e toda a infraestrutura do AI Python foram preservados. O Patient-Clinical agora está documentado e configurado como um único container Java que contém tanto a API quanto o listener Spring AMQP responsável pelos PDFs de prescrições. Os dois Compose foram validados, a imagem Java foi reconstruída e a suíte Maven passou. O comando de testes do AI ficou operacional para testes unitários, revelando duas falhas preexistentes no próprio AI que foram registradas sem ampliar o escopo desta migração.
+
+---
 <!-- TEMPLATE PARA NOVO DIA — Copie o bloco abaixo ao iniciar uma nova entrada -->
 
 <!--
