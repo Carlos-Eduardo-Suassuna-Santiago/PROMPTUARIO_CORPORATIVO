@@ -3,7 +3,6 @@ package br.edu.ifrn.promptuario.config;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -43,9 +42,6 @@ public class S3Config {
     @Value("${app.storage.s3.bucket-prescriptions:prescriptions}")
     private String prescriptionsBucket;
 
-    @Autowired
-    private S3Client configuredS3Client;
-
     @Bean
     public S3Client s3Client() {
         return S3Client.builder()
@@ -76,11 +72,12 @@ public class S3Config {
 
     @EventListener(ApplicationReadyEvent.class)
     public void ensureBuckets() {
-        ensureBucket(patientDocumentsBucket);
-        ensureBucket(prescriptionsBucket);
+        S3Client configuredS3Client = s3Client();
+        ensureBucket(configuredS3Client, patientDocumentsBucket);
+        ensureBucket(configuredS3Client, prescriptionsBucket);
     }
 
-    private void ensureBucket(String bucket) {
+    private void ensureBucket(S3Client configuredS3Client, String bucket) {
         try {
             configuredS3Client.headBucket(HeadBucketRequest.builder().bucket(bucket).build());
             log.info("S3 bucket ready: bucket={}", bucket);
