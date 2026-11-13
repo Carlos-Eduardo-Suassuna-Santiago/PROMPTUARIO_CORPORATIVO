@@ -1224,6 +1224,83 @@ A ponte temporária RabbitMQ entre o novo contrato Java e os consumidores legado
 O worker Celery exclusivo do Patient-Clinical foi retirado do fluxo atual e do código Python legado, enquanto os workers Celery do Reporting e toda a infraestrutura do AI Python foram preservados. O Patient-Clinical agora está documentado e configurado como um único container Java que contém tanto a API quanto o listener Spring AMQP responsável pelos PDFs de prescrições. Os dois Compose foram validados, a imagem Java foi reconstruída e a suíte Maven passou. O comando de testes do AI ficou operacional para testes unitários, revelando duas falhas preexistentes no próprio AI que foram registradas sem ampliar o escopo desta migração.
 
 ---
+
+## 2026-11-13 — Testes de Integração Ponta a Ponta do Patient-Clinical
+
+### 📋 Implementação Proposta
+
+- Completar `PatientClinicalIntegrationTest` com Testcontainers e propriedades dinâmicas, sem dependência de serviços externos permanentes.
+- Validar o fluxo desde o healthcheck e a criação dos recursos clínicos até o consumo pelo AI Python, geração do PDF, armazenamento S3 e atualização da prescrição.
+- Verificar simultaneamente os contratos RabbitMQ novo e legado e a idempotência do consumidor Python por `eventId`.
+- Cobrir os cenários de falha solicitados: mensagem duplicada, RabbitMQ indisponível, bucket ausente, paciente inexistente, CPF duplicado, conflito de horário e payload inválido.
+- Manter a suíte compilável e automaticamente ignorada quando o daemon Docker não estiver disponível.
+
+---
+
+### ✅ O que foi Implementado
+
+- **Infraestrutura efêmera de testes**:
+  - PostgreSQL 15 para Flyway, Hibernate e persistência clínica.
+  - RabbitMQ 3.13 para filas, exchanges, bindings, publicação dupla, retry e DLQ.
+  - LocalStack S3 para os buckets `patient-documents` e `prescriptions`.
+  - MongoDB 7 e Redis 7 para o fluxo real do AI Python.
+  - Imagem do AI Service construída a partir de `backend/ai-service` e `backend/shared`, executando o FastAPI real em modo de análise simulada, sem chave ou chamada para LLM externa.
+- **Configuração dinâmica**:
+  - Datasource, RabbitMQ, S3 e segredo JWT configurados com `@DynamicPropertySource` a partir das portas e credenciais dos containers.
+  - Removida a dependência de `RUN_INTEGRATION_TESTS`; `@Testcontainers(disabledWithoutDocker = true)` passou a controlar o skip quando não há daemon.
+  - Testcontainers atualizado de `1.20.1` para `1.21.4`, compatível com a API do Docker Engine disponível no ambiente.
+- **Fluxo clínico ponta a ponta**:
+  - `/healthz` validado com HTTP 200.
+  - Criação de paciente, consulta, prontuário SOAP e prescrição validada com HTTP 201 e autenticação JWT real de teste.
+  - Filas exclusivas de captura confirmam os eventos de prontuário e prescrição nas exchanges `domain.events` e `promptuario.clinical`.
+  - Corpos JSON canônico e legado comparados integralmente, incluindo igualdade de `eventId`, `timestamp`, `correlationId` e dos quatro headers AMQP.
+  - MongoDB consultado para confirmar que o AI Python criou as análises de sintomas e de interação medicamentosa.
+  - Duas republicações com o mesmo `eventId` foram ignoradas pelo consumidor, mantendo uma única análise de sintomas.
+  - Worker Spring AMQP gerou o PDF, armazenou o objeto no bucket `prescriptions` e preencheu `pdfS3Key` e `pdfGeneratedAt` na entidade.
+- **Disparo transacional do PDF**:
+  - Criado o evento interno `PrescriptionPdfRequestedEvent`.
+  - Criado `PrescriptionPdfJobPublisher`, que publica `prescription.pdf.generate` somente após o commit da prescrição e reutiliza o retry transitório da aplicação.
+  - O endpoint público de prescrição foi preservado e passou a iniciar automaticamente o fluxo assíncrono do worker.
+- **Testes negativos**:
+  - CPF duplicado retorna conflito.
+  - Paciente inexistente retorna recurso não encontrado.
+  - Conflito de horário retorna erro de negócio.
+  - Bucket ausente leva a mensagem à DLQ sem preencher os metadados do PDF.
+  - Payload HTTP e mensagem RabbitMQ inválidos são rejeitados.
+  - Publicação contra porta RabbitMQ indisponível confirma retry e propagação da falha.
+- Implementação registrada no commit `bd69445` (`test(patient-clinical): implementa testes de integração ponta a ponta com Testcontainers`).
+
+---
+
+### ❌ O que deu Erro
+
+- O host não possui Maven; compilação e testes foram executados com `maven:3.9.9-eclipse-temurin-21` em Docker.
+- O Testcontainers 1.20.1 usava Docker API 1.32, rejeitada pelo daemon local, que exige no mínimo 1.40; a dependência de testes foi atualizada para 1.21.4.
+- A imagem `minio/minio:RELEASE.2024-06-13T22-53-53Z` não estava mais disponível no registro. Como o requisito permite MinIO ou LocalStack S3, a suíte passou a usar LocalStack.
+- A primeira inicialização do teste tentava resolver as propriedades dinâmicas antes do startup dos containers por causa do ciclo de vida `PER_CLASS`; o bootstrap foi separado em callbacks estáticos e preparação por teste.
+- O RabbitMQ recusou inicialmente o usuário definido somente por variáveis de ambiente; as credenciais passaram a ser criadas pela API nativa `withAdminUser`/`withAdminPassword` do `RabbitMQContainer`.
+- As filas temporárias de captura eram removidas após o primeiro consumidor por estarem com `auto-delete`; foram mantidas não duráveis, mas ativas durante toda a execução do container.
+- O payload inicial usava `FEMALE`, enquanto o enum real aceita `F`; o fixture foi alinhado ao contrato do domínio.
+
+---
+
+### 🟢 O que Funcionou
+
+- `mvn -DskipTests test-compile` concluiu sem erros com Java 21.
+- `mvn -q clean test` executou 16 testes, com 16 aprovados, nenhum erro e nenhuma falha.
+- A classe E2E executou 7 testes em aproximadamente 56 segundos, todos aprovados.
+- Flyway aplicou a V1 em PostgreSQL 15 limpo e o Hibernate iniciou com `ddl-auto=validate`.
+- PostgreSQL, RabbitMQ, LocalStack S3, MongoDB, Redis, Spring Boot e o AI Python real foram iniciados e utilizados no mesmo cenário automatizado.
+- A execução sem socket Docker terminou com sucesso e registrou os 7 testes E2E como ignorados.
+- `git diff --check` não encontrou erros de whitespace.
+
+---
+
+### 📝 Resumo do Dia
+
+O fluxo clínico principal foi validado ponta a ponta, desde os endpoints REST até a mensageria compatível, o consumo pelo AI Python e a geração e persistência do PDF. A suíte agora cria toda a infraestrutura necessária com Testcontainers, comprova idempotência por `eventId`, verifica os destinos RabbitMQ novo e legado e cobre os cenários negativos exigidos. Também foi fechada a lacuna de produção que impedia a criação da prescrição de enfileirar o trabalho do PDF. O build limpo passou com 16 testes, e a ausência de Docker resulta em skip explícito sem quebrar a compilação.
+
+---
 <!-- TEMPLATE PARA NOVO DIA — Copie o bloco abaixo ao iniciar uma nova entrada -->
 
 <!--
