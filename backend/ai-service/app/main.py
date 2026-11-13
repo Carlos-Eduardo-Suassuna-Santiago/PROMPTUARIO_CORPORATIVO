@@ -180,19 +180,19 @@ def _setup_consumers(consumer: EventConsumer, db, redis_client, publisher):
 def _make_record_created_handler(db, redis_client, publisher):
     async def handle(body: bytes) -> None:
         try:
-            data = json.loads(body)
+            event = MedicalRecordCreatedEvent.from_json(body)
             svc = AIService(db, redis_client)
             job = await svc.create_job(
                 analysis_type="SYMPTOM_ANALYSIS",
-                patient_id=data["patient_id"],
-                record_id=data["record_id"],
+                patient_id=event.patient_id,
+                record_id=event.record_id,
                 context={
-                    "chief_complaint": data.get("chief_complaint", ""),
-                    "diagnosis_codes": data.get("diagnosis_codes", []),
+                    "chief_complaint": event.chief_complaint,
+                    "diagnosis_codes": event.diagnosis_codes,
                 },
             )
             await svc.run_analysis(job["_id"], publisher=publisher)
-            logger.info("Auto-analysis completed for record %s", data["record_id"])
+            logger.info("Auto-analysis completed for record %s", event.record_id)
         except Exception as e:
             logger.error("Error in auto-analysis: %s", e)
             raise
@@ -202,16 +202,16 @@ def _make_record_created_handler(db, redis_client, publisher):
 def _make_prescription_handler(db, redis_client, publisher):
     async def handle(body: bytes) -> None:
         try:
-            data = json.loads(body)
+            event = PrescriptionGeneratedEvent.from_json(body)
             svc = AIService(db, redis_client)
             job = await svc.create_job(
                 analysis_type="DRUG_INTERACTION_CHECK",
-                patient_id=data["patient_id"],
-                record_id=data["record_id"],
-                context={"medications": data.get("medications", [])},
+                patient_id=event.patient_id,
+                record_id=event.record_id,
+                context={"medications": event.medications},
             )
             await svc.run_analysis(job["_id"], publisher=publisher)
-            logger.info("Drug interaction check completed for prescription %s", data["prescription_id"])
+            logger.info("Drug interaction check completed for prescription %s", event.prescription_id)
         except Exception as e:
             logger.error("Error in drug interaction check: %s", e)
             raise

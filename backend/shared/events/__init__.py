@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, ClassVar
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 
 def _now() -> datetime:
@@ -20,12 +20,23 @@ def _new_id() -> str:
     return f"evt_{uuid.uuid4().hex[:20]}"
 
 
+def _new_correlation_id() -> str:
+    return str(uuid.uuid4())
+
+
 # ─── Base ─────────────────────────────────────────────────────────────────────
 
 class DomainEvent(BaseModel):
-    event_id: str = Field(default_factory=_new_id)
-    event_type: str
+    event_id: str = Field(
+        default_factory=_new_id,
+        validation_alias=AliasChoices("event_id", "eventId"),
+    )
+    event_type: str = Field(validation_alias=AliasChoices("event_type", "eventType"))
     timestamp: datetime = Field(default_factory=_now)
+    correlation_id: str = Field(
+        default_factory=_new_correlation_id,
+        validation_alias=AliasChoices("correlation_id", "correlationId"),
+    )
     version: str = "1.0"
 
     def to_json(self) -> bytes:
@@ -148,28 +159,46 @@ class AppointmentCancelledEvent(DomainEvent):
 
 
 class MedicalRecordCreatedEvent(DomainEvent):
-    event_type: str = "MedicalRecordCreated"
-    record_id: str
-    appointment_id: str
-    patient_id: str
-    doctor_id: str
-    chief_complaint: str
-    diagnosis_codes: list[str] = []
-    prescriptions_count: int = 0
-    exam_requests_count: int = 0
+    event_type: str = Field(
+        default="MedicalRecordCreated",
+        validation_alias=AliasChoices("event_type", "eventType"),
+    )
+    record_id: str = Field(validation_alias=AliasChoices("record_id", "recordId"))
+    appointment_id: str = Field(validation_alias=AliasChoices("appointment_id", "appointmentId"))
+    patient_id: str = Field(validation_alias=AliasChoices("patient_id", "patientId"))
+    doctor_id: str = Field(validation_alias=AliasChoices("doctor_id", "doctorId"))
+    chief_complaint: str = Field(validation_alias=AliasChoices("chief_complaint", "chiefComplaint"))
+    diagnosis_codes: list[str] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("diagnosis_codes", "diagnosisCodes"),
+    )
+    prescriptions_count: int = Field(
+        default=0,
+        validation_alias=AliasChoices("prescriptions_count", "prescriptionsCount"),
+    )
+    exam_requests_count: int = Field(
+        default=0,
+        validation_alias=AliasChoices("exam_requests_count", "examRequestsCount"),
+    )
 
     ROUTING_KEY: ClassVar[str] = "clinical.medical_record.created"
     EXCHANGE: ClassVar[str] = "promptuario.clinical"
 
 
 class PrescriptionGeneratedEvent(DomainEvent):
-    event_type: str = "PrescriptionGenerated"
-    prescription_id: str
-    record_id: str
-    patient_id: str
-    doctor_id: str
-    medications: list[dict[str, Any]] = []
-    pdf_s3_key: str | None = None
+    event_type: str = Field(
+        default="PrescriptionGenerated",
+        validation_alias=AliasChoices("event_type", "eventType"),
+    )
+    prescription_id: str = Field(validation_alias=AliasChoices("prescription_id", "prescriptionId"))
+    record_id: str = Field(validation_alias=AliasChoices("record_id", "recordId"))
+    patient_id: str = Field(validation_alias=AliasChoices("patient_id", "patientId"))
+    doctor_id: str = Field(validation_alias=AliasChoices("doctor_id", "doctorId"))
+    medications: list[dict[str, Any]] = Field(default_factory=list)
+    pdf_s3_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("pdf_s3_key", "pdfS3Key"),
+    )
 
     ROUTING_KEY: ClassVar[str] = "clinical.prescription.generated"
     EXCHANGE: ClassVar[str] = "promptuario.clinical"
@@ -194,6 +223,7 @@ class AnalysisCompletedEvent(DomainEvent):
 # ─── Exchange names ───────────────────────────────────────────────────────────
 
 EXCHANGES = {
+    "domain.events": "topic",
     "promptuario.iam": "topic",
     "promptuario.patient": "topic",
     "promptuario.clinical": "topic",

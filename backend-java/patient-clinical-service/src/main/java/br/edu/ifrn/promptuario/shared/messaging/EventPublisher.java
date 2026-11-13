@@ -1,5 +1,6 @@
 package br.edu.ifrn.promptuario.shared.messaging;
 
+import br.edu.ifrn.promptuario.shared.event.DomainEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.core.Message;
@@ -9,6 +10,11 @@ import org.springframework.retry.support.RetryTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
+import java.util.LinkedHashSet;
+import java.util.Objects;
+import java.util.Set;
+
+import static br.edu.ifrn.promptuario.config.RabbitMQConfig.DOMAIN_EVENTS_EXCHANGE;
 import static br.edu.ifrn.promptuario.config.RabbitMQConfig.LEGACY_CLINICAL_EXCHANGE;
 
 @Component
@@ -33,84 +39,55 @@ public class EventPublisher {
     }
 
     @Async("eventPublishingExecutor")
-    public void publish(String exchange, String routingKey, Object event) {
-        String correlationId = correlationId(event);
-        String eventId = eventId(event);
-        String timestamp = timestamp(event);
-        String eventType = eventType(event);
+    public void publish(String exchange, String routingKey, DomainEvent event) {
+        Objects.requireNonNull(event, "event must not be null");
+        String correlationId = Objects.requireNonNull(event.correlationId(), "correlationId must not be null");
+        String eventId = Objects.requireNonNull(event.eventId(), "eventId must not be null").toString();
+        String timestamp = Objects.requireNonNull(event.timestamp(), "timestamp must not be null").toString();
+        String eventType = Objects.requireNonNull(event.eventType(), "eventType must not be null");
         MessagePostProcessor headers = message -> {
             message.getMessageProperties().setHeader("correlationId", correlationId);
             message.getMessageProperties().setHeader("eventId", eventId);
             message.getMessageProperties().setHeader("timestamp", timestamp);
             message.getMessageProperties().setHeader("eventType", eventType);
-            if (eventId != null) message.getMessageProperties().setMessageId(eventId);
+            message.getMessageProperties().setCorrelationId(correlationId);
+            message.getMessageProperties().setMessageId(eventId);
             return message;
         };
-        try {
-            retryTemplate.execute(context -> {
-                rabbitTemplate.convertAndSend(exchange, routingKey, event, headers);
-                return null;
-            });
-            log.info("event_published publication=canonical exchange={} routingKey={} eventId={} eventType={} correlationId={}",
-                    exchange, routingKey, eventId, eventType, correlationId);
-        } catch (RuntimeException ex) {
-            log.error("event_publish_failed publication=canonical exchange={} routingKey={} eventId={} eventType={} correlationId={}",
-                    exchange, routingKey, eventId, eventType, correlationId, ex);
-            throw ex;
-        }
 
-        if (legacyPublishEnabled) publishLegacyIfNeeded(routingKey, event, headers, eventId, eventType, correlationId);
-    }
-
-    private void publishLegacyIfNeeded(String routingKey, Object event, MessagePostProcessor headers,
-                                       String eventId, String eventType, String correlationId) {
-        String legacyRoutingKey = switch (routingKey) {
-            case MEDICAL_RECORD_ROUTING_KEY -> LEGACY_MEDICAL_RECORD_ROUTING_KEY;
-            case PRESCRIPTION_ROUTING_KEY -> LEGACY_PRESCRIPTION_ROUTING_KEY;
-            default -> null;
-        };
-        if (legacyRoutingKey == null) return;
-        try {
-            retryTemplate.execute(context -> {
-                rabbitTemplate.convertAndSend(LEGACY_CLINICAL_EXCHANGE, legacyRoutingKey, event, headers);
-                return null;
-            });
-            log.info("event_published publication=legacy exchange={} routingKey={} eventId={} eventType={} correlationId={}",
-                    LEGACY_CLINICAL_EXCHANGE, legacyRoutingKey, eventId, eventType, correlationId);
-        } catch (RuntimeException ex) {
-            log.error("event_publish_failed publication=legacy exchange={} routingKey={} eventId={} eventType={} correlationId={}",
-                    LEGACY_CLINICAL_EXCHANGE, legacyRoutingKey, eventId, eventType, correlationId, ex);
-        }
-    }
-
-    private static String correlationId(Object event) {
-        return recordValue(event, "correlationId");
-    }
-
-    private static String eventId(Object event) {
-        return recordValue(event, "eventId");
-    }
-
-    private static String timestamp(Object event) {
-        return recordValue(event, "timestamp");
-    }
-
-    private static String eventType(Object event) {
-        return recordValue(event, "eventType");
-    }
-
-    private static String recordValue(Object event, String componentName) {
-        if (event == null || !event.getClass().isRecord()) return null;
-        try {
-            for (var component : event.getClass().getRecordComponents()) {
-                if (component.getName().equals(componentName)) {
-                    Object value = component.getAccessor().invoke(event);
-                    return value == null ? null : value.toString();
-                }
+        Set<Destination> destinations = destinations(exchange, routingKey);
+        for (Destination destination : destinations) {
+            try {
+                retryTemplate.execute(context -> {
+                    rabbitTemplate.convertAndSend(destination.exchange(), destination.routingKey(), event, headers);
+                    return null;
+                });
+                log.info("event_published publication={} exchange={} routingKey={} eventId={} eventType={} correlationId={}",
+                        destination.publication(), destination.exchange(), destination.routingKey(), eventId, eventType,
+                        correlationId);
+            } catch (RuntimeException ex) {
+                log.error("event_publish_failed publication={} exchange={} routingKey={} eventId={} eventType={} correlationId={}",
+                        destination.publication(), destination.exchange(), destination.routingKey(), eventId, eventType,
+                        correlationId, ex);
+                if (destination.publication().equals("canonical")) throw ex;
             }
-        } catch (ReflectiveOperationException ex) {
-            log.debug("Could not inspect event correlation id", ex);
         }
-        return null;
     }
+
+    private Set<Destination> destinations(String exchange, String routingKey) {
+        Set<Destination> destinations = new LinkedHashSet<>();
+        destinations.add(new Destination("canonical", exchange, routingKey));
+        if (legacyPublishEnabled && DOMAIN_EVENTS_EXCHANGE.equals(exchange)) {
+            switch (routingKey) {
+                case MEDICAL_RECORD_ROUTING_KEY -> destinations.add(new Destination(
+                        "legacy", LEGACY_CLINICAL_EXCHANGE, LEGACY_MEDICAL_RECORD_ROUTING_KEY));
+                case PRESCRIPTION_ROUTING_KEY -> destinations.add(new Destination(
+                        "legacy", LEGACY_CLINICAL_EXCHANGE, LEGACY_PRESCRIPTION_ROUTING_KEY));
+                default -> { }
+            }
+        }
+        return destinations;
+    }
+
+    private record Destination(String publication, String exchange, String routingKey) { }
 }
