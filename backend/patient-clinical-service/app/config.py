@@ -49,10 +49,6 @@ class Settings(BaseSettings):
     PDF_GENERATION_ENABLED: bool = True
     PDF_TEMPLATE_LOGO_URL: str = ""
 
-    # Celery (geração assíncrona de PDF e tarefas de background)
-    CELERY_BROKER_URL: str = "redis://localhost:6379/3"
-    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/3"
-
     # Business rules
     APPOINTMENT_CANCEL_HOURS_MIN: int = 24
 
