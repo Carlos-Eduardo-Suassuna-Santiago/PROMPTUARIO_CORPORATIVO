@@ -12,7 +12,8 @@
 - [2026-11-05](#2026-11-05)
 - [2026-11-08](#2026-11-08)
 - [2026-11-09](#2026-11-09)
-- [2026-11-11 — Entrada mais recente](#2026-11-11)
+- [2026-11-11](#2026-11-11--cutover-do-backup-service-de-python-para-java-21)
+- [2026-11-13 — Entrada mais recente](#2026-11-13)
 
 ---
 
@@ -1009,6 +1010,68 @@ A observabilidade completa do `backup-service` foi implementada e validada: mét
 ### 📝 Resumo do Dia
 
 O cutover do `backup-service` de Python para Java 21 foi concluído: CLI com Picocli, controladores REST operacionais, segurança JWT com role ADMIN, Dockerfile multi-stage Alpine, atualização do docker-compose e Makefile. O serviço está pronto para homologação em staging antes do deploy em produção.
+
+---
+
+## 2026-11-13
+
+### 📋 Implementação Proposta
+
+- Criar a migração Flyway inicial completa do `backend-java/patient-clinical-service` a partir das entidades JPA, repositórios e DTOs existentes.
+- Garantir compatibilidade com PostgreSQL 15, usando IDs textuais, `TIMESTAMPTZ`, `JSONB`, enums como `VARCHAR`, chaves estrangeiras e índices alinhados às consultas dos repositórios.
+- Validar a migração em banco limpo, executar `mvn clean test`, iniciar o serviço com `ddl-auto=validate` e confirmar que uma segunda inicialização não reaplica a migração.
+
+---
+
+### ✅ O que foi Implementado
+
+- **Migração Flyway `V1__init_patient_clinical_schema.sql`**:
+  - Criação das 18 tabelas do domínio: pacientes, alergias, vacinas, medicamentos contínuos e seus históricos, documentos, escalas, horários, consultas, prontuários e históricos, prescrições e históricos, solicitações de exames e históricos, atestados e históricos, além dos logs de auditoria.
+  - Definição de 18 chaves primárias `VARCHAR(36)`, compatíveis com os UUIDs textuais gerados pelas entidades Java.
+  - Uso de `TIMESTAMPTZ` para todos os campos Java `Instant` e de `JSONB` para todos os campos mapeados com `@JdbcTypeCode(SqlTypes.JSON)`.
+  - Persistência dos enums como `VARCHAR`, acompanhados de constraints `CHECK` compatíveis com os valores Java.
+  - Criação de 17 chaves estrangeiras, com `ON DELETE CASCADE`, `SET NULL` ou `NO ACTION` conforme os relacionamentos e anotações JPA.
+  - Criação de 31 índices, incluindo índices compostos para buscas por paciente, médico, status, disponibilidade e ordenação dos históricos por data.
+  - Ausência intencional de `IF NOT EXISTS`, permitindo que o Flyway detecte conflitos ou inconsistências de versão.
+- **Correção mínima de startup em `S3Config.java`**:
+  - Removida a autoinjeção do `S3Client` produzido pela própria classe de configuração, que causava uma dependência circular durante a criação dos beans.
+  - O mesmo cliente singleton passou a ser obtido pelo método `@Bean` durante o evento `ApplicationReadyEvent`, preservando a criação e verificação dos buckets e sem alterar endpoints públicos.
+- **Validação executada com infraestrutura Docker efêmera**:
+  - Build multi-stage do Dockerfile concluído com Java 21 e Maven 3.9.
+  - Migração aplicada em PostgreSQL 15.19 vazio, criando exatamente 18 tabelas de aplicação.
+  - Hibernate iniciou com `ddl-auto=validate` e criou o `EntityManagerFactory` sem divergências de tabela, coluna, tipo ou constraint.
+  - Serviço chegou ao estado `healthy` e `/healthz` respondeu com status `ok` e versão `1.0.0-java`.
+  - Segunda inicialização sobre a mesma base registrou `Schema "public" is up to date. No migration necessary`.
+  - A tabela `flyway_schema_history` permaneceu com uma única migração, versão `1`, marcada como bem-sucedida.
+  - Os contêineres e a rede criados exclusivamente para a validação foram removidos ao final; nenhum volume persistente do projeto foi alterado.
+
+---
+
+### ❌ O que deu Erro
+
+- O host não possui Maven instalado. A compilação e os testes foram executados com a imagem oficial Maven/Java 21 em Docker.
+- O teste `PatientClinicalIntegrationTest` é condicionado por `RUN_INTEGRATION_TESTS=true` e ficou ignorado na execução padrão de `mvn clean test`.
+- Mesmo habilitado explicitamente, o Testcontainers 1.20.1 não conseguiu negociar com o Docker Engine 29.9.1: o cliente tentou usar a API 1.32, enquanto o daemon exige no mínimo a API 1.40. A validação equivalente foi executada diretamente com contêineres isolados de PostgreSQL 15 e RabbitMQ.
+- A primeira tentativa de startup revelou uma dependência circular preexistente em `S3Config`; a configuração foi corrigida e os startups posteriores passaram no healthcheck.
+- O arquivo `AUDITORIA_INTEGRACAO_BACKEND_JAVA.md` citado no plano de trabalho não estava presente no workspace.
+
+---
+
+### 🟢 O que Funcionou
+
+- `mvn -B clean test` terminou com `BUILD SUCCESS`, compilando 118 arquivos-fonte e o teste de integração.
+- O Dockerfile do `patient-clinical-service` gerou a imagem final com sucesso.
+- Flyway aplicou a migração V1 em banco PostgreSQL 15 limpo e não a reaplicou no segundo startup.
+- O schema validado contém 18 PKs `VARCHAR(36)`, 10 colunas `JSONB` e 32 colunas `TIMESTAMPTZ`.
+- As 17 ações referenciais foram conferidas diretamente no catálogo PostgreSQL e correspondem aos relacionamentos definidos nas entidades.
+- O serviço iniciou duas vezes com `ddl-auto=validate`, conectou ao RabbitMQ efêmero e respondeu corretamente ao endpoint de saúde.
+- As mudanças locais preexistentes e a pasta não rastreada `Planos-Migração/` foram preservadas.
+
+---
+
+### 📝 Resumo do Dia
+
+Foi concluída a migração inicial Flyway do `patient-clinical-service`, cobrindo todo o modelo JPA e os índices usados pelos repositórios. A V1 foi validada em PostgreSQL 15 limpo, passou pela validação do Hibernate e permaneceu idempotente sob o controle de versão do Flyway na segunda inicialização. Durante o teste foi identificado e corrigido um ciclo de dependência no bootstrap do S3. O build Maven e a imagem Docker foram concluídos com sucesso; permanece como limitação ambiental a incompatibilidade entre Testcontainers 1.20.1 e a versão atual do daemon Docker, além de ficarem pendentes para os próximos prompts a validação do MinIO, AI Python e Docker Compose completo.
 
 ---
 <!-- TEMPLATE PARA NOVO DIA — Copie o bloco abaixo ao iniciar uma nova entrada -->
