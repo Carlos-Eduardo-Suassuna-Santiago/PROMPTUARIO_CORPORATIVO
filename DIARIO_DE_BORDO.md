@@ -1301,6 +1301,95 @@ O worker Celery exclusivo do Patient-Clinical foi retirado do fluxo atual e do c
 O fluxo clínico principal foi validado ponta a ponta, desde os endpoints REST até a mensageria compatível, o consumo pelo AI Python e a geração e persistência do PDF. A suíte agora cria toda a infraestrutura necessária com Testcontainers, comprova idempotência por `eventId`, verifica os destinos RabbitMQ novo e legado e cobre os cenários negativos exigidos. Também foi fechada a lacuna de produção que impedia a criação da prescrição de enfileirar o trabalho do PDF. O build limpo passou com 16 testes, e a ausência de Docker resulta em skip explícito sem quebrar a compilação.
 
 ---
+
+## 2026-11-14 — Validação Final da Integração do Backend Java
+
+### 📋 Implementação Proposta
+
+- Executar as suítes completas do Gateway, IAM, Patient-Clinical e AI Python.
+- Validar sintaticamente os arquivos Compose de `backend-java/` e `backend/`.
+- Iniciar PostgreSQL, MongoDB, RabbitMQ, Redis, MinIO, os três serviços Java e o AI Python.
+- Confirmar healthchecks, Flyway, `ddl-auto=validate`, publicação RabbitMQ nova e legada, consumo idempotente pelo AI, buckets MinIO e geração do PDF.
+- Verificar a ausência do container `patient-clinical-worker` e de referências ativas ao Redis DB 3 no Patient-Clinical.
+- Registrar resultados, serviços efetivamente iniciados, limitações ambientais e pendências sem realizar correções fora do escopo da auditoria.
+
+---
+
+### ✅ O que foi Implementado
+
+- **Auditoria das suítes Java**:
+  - Gateway executou 30 testes, todos aprovados.
+  - IAM executou 19 testes, todos aprovados, incluindo PostgreSQL, Redis e Flyway via Testcontainers.
+  - Patient-Clinical executou 16 testes, todos aprovados, dos quais 7 pertencem ao fluxo E2E real com PostgreSQL 15, RabbitMQ, LocalStack S3, MongoDB, Redis e AI Python.
+  - Os testes comprovaram publicação canônica e legada, aliases camelCase/snake_case, feature flag da publicação legada, idempotência, retry, DLQ e cenários negativos.
+- **Flyway e Hibernate**:
+  - A migração V1 do Patient-Clinical foi aplicada em PostgreSQL 15 limpo.
+  - O serviço iniciou com `spring.jpa.hibernate.ddl-auto=validate` sem divergências de tabela, coluna ou tipo.
+  - Na segunda inicialização, Flyway registrou `Schema "public" is up to date. No migration necessary`, confirmando que a V1 não foi reaplicada.
+- **Compose e serviços reais**:
+  - Os dois comandos `docker compose ... config --quiet` terminaram com código 0.
+  - Um override temporário fora do repositório remapeou somente as portas ocupadas e forneceu as credenciais ausentes para completar a auditoria sem interferir nos containers externos.
+  - Os dez serviços solicitados ficaram `healthy`: `db-iam`, `db-patient-clinical`, `db-ai`, `rabbitmq`, `redis`, `minio`, `iam-service`, `patient-clinical-service`, `ai-service` e `gateway`.
+  - `http://localhost:8000/healthz`, `:8001/healthz`, `:8002/healthz`, `:8004/healthz` e `:8002/docs` retornaram HTTP 200; o endpoint `/docs` foi validado após seguir o redirecionamento para o Swagger UI.
+- **Fluxo funcional em runtime**:
+  - Login realizado com o administrador inicial do IAM.
+  - Paciente, consulta, prontuário SOAP e prescrição criados pelo Gateway.
+  - O prontuário foi publicado em `domain.events/medical_record.created` e `promptuario.clinical/clinical.medical_record.created` com o mesmo `eventId` e `correlationId`.
+  - O AI Python consumiu o prontuário real e concluiu a análise automática.
+  - A mesma mensagem sintética foi publicada duas vezes; o MongoDB confirmou exatamente um job para o `eventId`, validando idempotência.
+  - Após o envio isolado do job de PDF, o worker Spring AMQP gerou o documento, publicou o evento de prescrição nos destinos novo e legado e o AI executou a análise de interação medicamentosa.
+  - O PDF foi confirmado diretamente pela API S3 do MinIO com 2.331 bytes e `Content-Type: application/pdf`.
+  - A prescrição recebeu `pdfS3Key` e `pdfGeneratedAt` no PostgreSQL.
+- **Ausências confirmadas**:
+  - Nenhum serviço ou container `patient-clinical-worker` existe na configuração resolvida.
+  - O Patient-Clinical não possui configuração Redis nem referência ao DB 3.
+  - O AI Python permanece no Redis DB 2.
+- A pilha temporária foi encerrada ao final, sem remover volumes e sem afetar os containers externos `minio-dev` e `rabbitmq-dev`.
+- O override e o ambiente virtual criados em `/tmp` foram removidos, e `git status --short` permaneceu limpo antes desta atualização do diário.
+
+---
+
+### ❌ O que deu Erro
+
+- O host não possui Maven nem pytest instalados. As suítes Java foram executadas com Maven 3.9.9 e Java 21 em container, e o Python foi testado em ambiente virtual temporário.
+- O comando literal `pytest -q` do AI não chegou aos testes porque o projeto não configura o diretório da aplicação no `PYTHONPATH`, causando `ModuleNotFoundError: app`.
+- Com `PYTHONPATH` configurado, a coleta ainda exigiu `JWT_SECRET_KEY` e `asyncio_mode=auto`, opções que não estão declaradas pelo projeto para uma execução autônoma.
+- A execução unitária diagnóstica do AI terminou com 44 testes aprovados, 2 falhas e 1 integração desmarcada:
+  - o teste de timeout espera `Timed out`, enquanto o serviço persiste `Analysis timed out after 120s`;
+  - o mock de `find().sort()` em `test_list_by_record` retorna uma coroutine incompatível com `to_list()`.
+- O `docker compose up` oficial falhou inicialmente por conflitos com infraestrutura externa preexistente:
+  - `minio-dev` já ocupava `9000/9001`;
+  - `rabbitmq-dev` já ocupava `5672/15672`.
+- A configuração oficial também revelou divergências próprias:
+  - MinIO usa `promptuario/promptuario_pass`, mas o Patient-Clinical recebe por padrão `minioadmin/minioadmin`;
+  - o Patient-Clinical não recebe `SPRING_RABBITMQ_USERNAME` nem `SPRING_RABBITMQ_PASSWORD`, usa `guest/guest` e recebe `ACCESS_REFUSED`;
+  - o healthcheck do RabbitMQ usa timeout de 5 segundos, insuficiente durante o primeiro startup neste ambiente.
+- No fluxo HTTP executado pelo Compose, a criação da prescrição não publicou automaticamente `prescription.pdf.generate`. A fila possuía dois consumidores e nenhuma mensagem; o worker funcionou integralmente quando o mesmo job foi publicado manualmente. O gatilho transacional entre controller e publicador precisa ser investigado, apesar de passar no Testcontainers.
+- O AI registrou avisos de exportação OTLP porque `otel-collector` não fazia parte da lista de serviços solicitada. O único traceback do AI correspondeu ao `CancelledError` causado pelo reinício controlado do container.
+- A primeira tentativa de criar o commit `docs(backend): documenta resultados da validação final de integração` não gerou commit porque o working tree ainda estava limpo naquele momento.
+
+---
+
+### 🟢 O que Funcionou
+
+- `mvn clean test` do Gateway, IAM e Patient-Clinical terminou com código 0, totalizando 65 testes Java aprovados.
+- O E2E do Patient-Clinical executou com Docker disponível, sem skips, e validou todos os cenários positivos e negativos solicitados.
+- Os dois arquivos Compose são sintaticamente válidos.
+- Todos os serviços solicitados iniciaram e ficaram saudáveis após o override temporário não versionado.
+- Flyway criou o schema, Hibernate validou o mapeamento e a segunda inicialização não reaplicou a migração.
+- RabbitMQ entregou eventos aos contratos novo e legado, preservando os identificadores do envelope.
+- O AI Python continuou funcional, consumiu eventos reais e ignorou duplicatas por `eventId`.
+- MinIO criou os buckets `patient-documents` e `prescriptions` e armazenou um PDF válido.
+- O worker Spring AMQP executou dentro do mesmo container do Patient-Clinical; nenhum worker Celery legado foi iniciado.
+- Não houve alteração destrutiva, remoção de endpoint público ou modificação de código durante a auditoria.
+
+---
+
+### 📝 Resumo do Dia
+
+A auditoria final confirmou a solidez das correções Java: as três suítes Maven e o E2E passaram, Flyway e `ddl-auto=validate` funcionaram em PostgreSQL 15, a publicação dupla chegou ao AI Python e o worker Spring AMQP gerou e armazenou o PDF. O aceite global ainda é parcial porque `pytest -q` não é autossuficiente e conserva duas falhas unitárias, enquanto o Compose oficial contém credenciais divergentes para MinIO, omite as credenciais RabbitMQ do Patient-Clinical e apresentou um gatilho de PDF que não publicou automaticamente no fluxo runtime. O override temporário permitiu separar esses problemas de configuração do funcionamento efetivo dos componentes, e toda a infraestrutura criada para a auditoria foi encerrada sem afetar serviços preexistentes.
+
+---
 <!-- TEMPLATE PARA NOVO DIA — Copie o bloco abaixo ao iniciar uma nova entrada -->
 
 <!--
