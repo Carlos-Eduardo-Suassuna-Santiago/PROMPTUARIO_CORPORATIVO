@@ -1,0 +1,76 @@
+server:
+  port: ${SERVER_PORT:8000}
+
+spring:
+  application:
+    name: backup-service
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+
+management:
+  endpoints:
+    web:
+      base-path: /actuator
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when_authorized
+
+promptuario:
+  backup:
+    # Agendamento e retenção
+    schedule-cron: "${BACKUP_SCHEDULE_CRON:0 0 3 * * ?}"
+    retention-days: "${BACKUP_RETENTION_DAYS:7}"
+    root-dir: "${BACKUP_ROOT_DIR:/var/backups}"
+    encryption-enabled: "${BACKUP_ENCRYPTION_ENABLED:true}"
+    encryption-secret: "${BACKUP_ENCRYPTION_KEY:PROMPTUARIO_AES_256_SECRET_KEY_SAMPLE_32B}"
+    dump-timeout-seconds: "${BACKUP_DUMP_TIMEOUT_SECONDS:600}"
+    restore-timeout-seconds: "${BACKUP_RESTORE_TIMEOUT_SECONDS:1800}"
+    rpo-hours: "${BACKUP_RPO_HOURS:24}"
+    drill-cron: "${BACKUP_DRILL_CRON:0 0 4 1 * ?}"
+
+    # Topologia unificada pós-Fase 12 (nunca db-patient / db-clinical)
+    postgres:
+      iam:
+        host: "${DB_IAM_HOST:db-iam}"
+        port: 5432
+        dbname: "iam_db"
+        user: "iam"
+        password: "${DB_IAM_PASS:iam_pass}"
+      patient-clinical:
+        host: "${DB_PATIENT_CLINICAL_HOST:db-patient-clinical}"
+        port: 5432
+        dbname: "patient_clinical_db"
+        user: "clinical"
+        password: "${DB_PATIENT_CLINICAL_PASS:clinical_pass}"
+      reporting:
+        host: "${DB_REPORTING_HOST:db-reporting}"
+        port: 5432
+        dbname: "reporting_db"
+        user: "reporting"
+        password: "${DB_REPORTING_PASS:reporting_pass}"
+
+    mongo:
+      host: "${MONGO_HOST:db-ai}"
+      port: 27017
+      dbname: "ai_db"
+      user: "ai"
+      password: "${MONGO_PASS:ai_pass}"
+
+app:
+  storage:
+    s3:
+      endpoint: "${MINIO_ENDPOINT:http://minio:9000}"
+      access-key: "${MINIO_ACCESS_KEY:promptuario}"
+      secret-key: "${MINIO_SECRET_KEY:promptuario_pass}"
+      bucket-backups: "${MINIO_BACKUP_BUCKET:backups}"
+      region: "us-east-1"
+
+logging:
+  level:
+    br.edu.ifrn.promptuario.backup: ${BACKUP_LOG_LEVEL:INFO}

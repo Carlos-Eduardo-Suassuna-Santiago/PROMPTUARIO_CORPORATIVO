@@ -34,9 +34,6 @@ def test_settings_exposes_required_blocks():
     assert settings.S3_BUCKET_PATIENT_DOCUMENTS
     assert settings.S3_BUCKET_PRESCRIPTIONS
 
-    # Celery
-    assert settings.CELERY_BROKER_URL.startswith("redis://")
-    assert settings.CELERY_RESULT_BACKEND.startswith("redis://")
 
     # Regras de negócio (cancelamento + assinatura)
     assert settings.APPOINTMENT_CANCEL_HOURS_MIN >= 0

@@ -31,12 +31,44 @@ logger = logging.getLogger("backup_runner")
 
 # ── Configuração via variáveis de ambiente ────────────────────────────────
 
+# Bancos PostgreSQL alvo do backup (topologia unificada pós-Fase 12).
+# Os antigos serviços de banco separados de paciente e clínico foram desativados
+# e substituídos pelo container unificado "db-patient-clinical", que serve o
+# banco "patient_clinical_db".
 POSTGRES_DATABASES = [
-    {"host": "db-iam", "user": "iam", "password": "iam_pass", "dbname": "iam_db"},
-    {"host": "db-patient", "user": "patient", "password": "patient_pass", "dbname": "patient_db"},
-    {"host": "db-clinical", "user": "clinical", "password": "clinical_pass", "dbname": "clinical_db"},
-    {"host": "db-reporting", "user": "reporting", "password": "reporting_pass", "dbname": "reporting_db"},
+    {"host": os.getenv("IAM_DB_HOST", "db-iam"), "user": "iam", "password": "iam_pass", "dbname": "iam_db"},
+    {
+        "host": os.getenv("PATIENT_CLINICAL_DB_HOST", "db-patient-clinical"),
+        "user": "clinical",
+        "password": "clinical_pass",
+        "dbname": "patient_clinical_db",
+    },
+    {"host": os.getenv("REPORTING_DB_HOST", "db-reporting"), "user": "reporting", "password": "reporting_pass", "dbname": "reporting_db"},
 ]
+
+
+def _apply_postgres_env_overrides(databases: list[dict[str, str]]) -> None:
+    """Permite sobrescrever as credenciais default via variáveis de ambiente.
+
+    Precedência (maior primeiro):
+      1. ``<PREFIXO>_DB_USER`` / ``<PREFIXO>_DB_PASSWORD`` (específico do banco);
+      2. ``POSTGRES_USER`` / ``POSTGRES_PASSWORD`` (genérico do ambiente);
+      3. credencial default declarada em ``POSTGRES_DATABASES``.
+
+    O ``<PREFIXO>`` é derivado do nome do banco (ex.: ``patient_clinical_db`` →
+    ``PATIENT_CLINICAL``).
+    """
+    for cfg in databases:
+        prefix = cfg["dbname"].removesuffix("_db").upper()
+        user = os.getenv(f"{prefix}_DB_USER") or os.getenv("POSTGRES_USER")
+        password = os.getenv(f"{prefix}_DB_PASSWORD") or os.getenv("POSTGRES_PASSWORD")
+        if user:
+            cfg["user"] = user
+        if password:
+            cfg["password"] = password
+
+
+_apply_postgres_env_overrides(POSTGRES_DATABASES)
 
 MONGO_CONFIG = {
     "host": os.getenv("MONGO_HOST", "db-ai"),
@@ -100,11 +132,18 @@ def upload_to_s3(local_path: Path, kind: str, dbname: str) -> str | None:
         return None
 
 
-def write_status_report(results: list[dict[str, Any]], status: str, mode: str) -> None:
+def write_status_report(
+    results: list[dict[str, Any]],
+    status: str,
+    mode: str,
+    elapsed: float = 0.0,
+) -> None:
     payload = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "mode": mode,
         "status": status,
+        "elapsed_seconds": round(elapsed, 2),
+        "database_count": len(results),
         "backups": results,
     }
     STATUS_FILE.write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -293,18 +332,41 @@ def run_all_backups(mode: str = "scheduled") -> list[dict[str, Any]]:
     start = time.time()
     logger.info("════ Iniciando backup completo (%s) ════", mode)
 
-    ensure_bucket()
+    try:
+        ensure_bucket()
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("Não foi possível preparar o bucket MinIO: %s", exc)
+
     results: list[dict[str, Any]] = []
 
+    # Cada alvo é processado de forma isolada: uma falha inesperada em um banco
+    # NÃO interrompe os demais, preservando a cobertura de proteção contra
+    # desastres mesmo em cenário degradado.
     for cfg in POSTGRES_DATABASES:
-        results.append(backup_postgres(cfg, mode))
+        try:
+            results.append(backup_postgres(cfg, mode))
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.error("Erro inesperado no backup de %s: %s", cfg["dbname"], exc)
+            results.append(
+                {"database": cfg["dbname"], "kind": "postgres", "status": "failed", "error": str(exc)}
+            )
 
-    results.append(backup_mongo(MONGO_CONFIG, mode))
-    cleanup_old_backups()
+    try:
+        results.append(backup_mongo(MONGO_CONFIG, mode))
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.error("Erro inesperado no backup do MongoDB: %s", exc)
+        results.append(
+            {"database": MONGO_CONFIG["dbname"], "kind": "mongo", "status": "failed", "error": str(exc)}
+        )
+
+    try:
+        cleanup_old_backups()
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("Falha na limpeza de backups antigos: %s", exc)
 
     elapsed = time.time() - start
     status = "success" if all(item["status"] in {"uploaded", "local_only"} for item in results) else "partial"
-    write_status_report(results, status, mode)
+    write_status_report(results, status, mode, elapsed)
     logger.info("════ Backup concluído em %.1fs: %s ════", elapsed, json.dumps(results))
     return results
 

@@ -1196,8 +1196,8 @@ def _make_stat_handler(session_factory, stat_type: str, id_field: str):
 def _make_doctor_stat_handler(session_factory):
     async def handle(body: bytes) -> None:
         try:
-            data = json.loads(body)
-            doctor_id = data.get("doctor_id")
+            event = MedicalRecordCreatedEvent.from_json(body)
+            doctor_id = event.doctor_id
             if not doctor_id:
                 return
             today = datetime.now(timezone.utc).date().isoformat()

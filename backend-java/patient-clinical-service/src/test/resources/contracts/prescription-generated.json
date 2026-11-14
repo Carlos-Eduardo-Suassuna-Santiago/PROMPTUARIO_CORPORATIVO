@@ -1,0 +1,18 @@
+{
+  "eventId": "22222222-2222-2222-2222-222222222222",
+  "timestamp": "2026-01-15T13:30:45Z",
+  "eventType": "PrescriptionGenerated",
+  "correlationId": "corr-prescription-001",
+  "prescriptionId": "prescription-001",
+  "recordId": "record-001",
+  "patientId": "patient-001",
+  "doctorId": "doctor-001",
+  "medications": [
+    {
+      "name": "Dipirona",
+      "dosage": "500 mg",
+      "frequency": "8/8h"
+    }
+  ],
+  "pdfS3Key": "prescriptions/patient-001/prescription-001.pdf"
+}

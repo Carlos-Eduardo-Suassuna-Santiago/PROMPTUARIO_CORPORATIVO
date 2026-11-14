@@ -144,36 +144,30 @@ services:
     ports:
       - "8001:8000"
     networks: [ backend ]
-
-
+  # The prescription PDF worker is an internal Spring AMQP @RabbitListener.
+  # Do not add a separate patient-clinical worker container.
   patient-clinical-service:
     build:
-      context: .
-      dockerfile: patient-clinical-service/Dockerfile
+      context: ../backend-java/patient-clinical-service
+      dockerfile: Dockerfile
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql+asyncpg://clinical:${DB_CLINICAL_PASSWORD:-clinical_pass}@db-patient-clinical:5432/patient_clinical_db
-      RABBITMQ_URL: amqp://promptuario:${RABBITMQ_PASSWORD:-promptuario_pass}@rabbitmq:5672/
-      REDIS_URL: redis://redis:6379/0
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-super-secret-change-in-production-32chars}
-      JWT_ALGORITHM: HS256
-      S3_ENDPOINT: http://minio:9000
-      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
-      S3_ACCESS_KEY: promptuario
-      S3_SECRET_KEY: promptuario_pass
-      S3_BUCKET_PRESCRIPTIONS: prescriptions
-      S3_BUCKET_PATIENT_DOCUMENTS: patient-documents
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db-patient-clinical:5432/patient_clinical_db
+      SPRING_DATASOURCE_USERNAME: clinical
+      SPRING_DATASOURCE_PASSWORD: ${DB_CLINICAL_PASSWORD:-clinical_pass}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      APP_STORAGE_S3_ENDPOINT: http://minio:9000
+      APP_STORAGE_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      APP_STORAGE_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      APP_SECURITY_JWT_SECRET: ${JWT_SECRET_KEY:-super-secret-change-in-production-32chars}
+      SERVER_PORT: 8000
       SERVICE_NAME: patient-clinical-service
       LOG_LEVEL: INFO
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
-      CELERY_BROKER_URL: redis://redis:6379/3
-      CELERY_RESULT_BACKEND: redis://redis:6379/3
     depends_on:
       db-patient-clinical:
         condition: service_healthy
       rabbitmq:
-        condition: service_healthy
-      redis:
         condition: service_healthy
       minio:
         condition: service_healthy
@@ -181,35 +175,10 @@ services:
       - "8002:8000"
     networks: [ backend ]
 
-  patient-clinical-worker:
-    build:
-      context: .
-      dockerfile: patient-clinical-service/Dockerfile.worker
-    environment:
-      DATABASE_URL: postgresql+asyncpg://clinical:${DB_CLINICAL_PASSWORD:-clinical_pass}@db-patient-clinical:5432/patient_clinical_db
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-super-secret-change-in-production-32chars}
-      CELERY_BROKER_URL: redis://redis:6379/3
-      CELERY_RESULT_BACKEND: redis://redis:6379/3
-      S3_ENDPOINT: http://minio:9000
-      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
-      S3_ACCESS_KEY: promptuario
-      S3_SECRET_KEY: promptuario_pass
-      S3_BUCKET_PRESCRIPTIONS: prescriptions
-      S3_BUCKET_PATIENT_DOCUMENTS: patient-documents
-    depends_on:
-      db-patient-clinical:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-    networks: [ backend ]
-    restart: unless-stopped
-
   ai-service:
     build:
-      context: .
-      dockerfile: ai-service/Dockerfile
+      context: ..
+      dockerfile: backend-java/ai-service/Dockerfile
     restart: unless-stopped
     environment:
       MONGODB_URL: mongodb://ai:${DB_AI_PASSWORD:-ai_pass}@db-ai:27017/ai_db?authSource=admin
@@ -226,6 +195,8 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
     depends_on:
       db-ai:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
@@ -452,20 +423,28 @@ services:
   # Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ BACKUP SERVICE Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   backup-service:
     build:
-      context: .
-      dockerfile: backup/Dockerfile
+      context: ../backend-java/backup-service
+      dockerfile: Dockerfile
+    container_name: backup-service
+    restart: unless-stopped
     environment:
-      MONGO_HOST: db-ai
-      MONGO_USER: ai
-      MONGO_PASS: ai_pass
-      MONGO_DB: ai_db
-      MINIO_ENDPOINT: http://minio:9000
-      MINIO_ACCESS_KEY: promptuario
-      MINIO_SECRET_KEY: promptuario_pass
-      MINIO_BACKUP_BUCKET: backups
-      BACKUP_RETENTION_DAYS: "7"
-      BACKUP_SCHEDULE_HOURS: "24"
-      BACKUP_ROOT_DIR: /var/backups
+      - BACKUP_SCHEDULE_CRON=0 0 3 * * ?
+      - BACKUP_RETENTION_DAYS=7
+      - BACKUP_ENCRYPTION_ENABLED=true
+      - BACKUP_ENCRYPTION_KEY=${BACKUP_ENCRYPTION_KEY:-CHAVE_SECRETA_AES_256_PROMPTUARIO_32B}
+      - DB_IAM_HOST=db-iam
+      - DB_PATIENT_CLINICAL_HOST=db-patient-clinical
+      - DB_REPORTING_HOST=db-reporting
+      - MONGO_HOST=db-ai
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-promptuario}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-promptuario_pass}
+      - MINIO_BACKUP_BUCKET=backups
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+    volumes:
+      - backup_data:/var/backups
+    ports:
+      - "8006:8000"
     depends_on:
       db-iam:
         condition: service_healthy
@@ -477,8 +456,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
-    networks: [ backend ]
-    restart: unless-stopped
+    networks:
+      - backend
 
 networks:
   backend:

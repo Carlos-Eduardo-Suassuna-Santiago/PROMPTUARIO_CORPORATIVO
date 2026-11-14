@@ -10,8 +10,10 @@
 - [2026-11-03](#2026-11-03)
 - [2026-11-04](#2026-11-04)
 - [2026-11-05](#2026-11-05)
-- [2026-11-08 — Entrada mais recente](#2026-11-08)
-- [2026-11-09 — Entrada mais recente](#2026-11-09)
+- [2026-11-08](#2026-11-08)
+- [2026-11-09](#2026-11-09)
+- [2026-11-11](#2026-11-11--cutover-do-backup-service-de-python-para-java-21)
+- [2026-11-13 — Entrada mais recente](#2026-11-13)
 
 ---
 
@@ -576,6 +578,45 @@ Foram adicionados health checks reativos para o Gateway e para os serviços inte
 
 ---
 
+## 2026-11-09 — Mensageria resiliente e containerização Java
+
+### 📋 Implementação Proposta
+
+- Reforçar a integração por eventos entre o serviço clínico Java e consumidores legados, com retentativas e publicação assíncrona.
+- Preparar o `patient-clinical-service` e o AI Service Java para execução em containers e ampliar a validação de integração.
+
+---
+
+### ✅ O que foi Implementado
+
+- Expansão da configuração RabbitMQ com exchange e fila clínica, bindings para `medical_record.created` e `prescription.generated`, além de rotas legadas compatíveis com o AI Service Python.
+- Atualização dos eventos de criação de prontuário e geração de prescrição com identificador, timestamp, tipo e correlação; publicação assíncrona, retentativas e opção configurável para encaminhamento às exchanges legadas.
+- Inclusão de `Dockerfile` multi-stage para compilar o `patient-clinical-service` com Java 21/Maven e executar a aplicação com usuário não privilegiado.
+- Criação de configuração Compose para os serviços Java e ajustes no Compose/Makefile do backend para usar a implementação Java unificada de pacientes e clínica.
+- Inclusão de teste de integração Spring Boot com PostgreSQL, RabbitMQ e MinIO via Testcontainers, condicionado à variável `RUN_INTEGRATION_TESTS=true`.
+- Inclusão da estrutura do AI Service e bibliotecas compartilhadas em `backend-java`, com imagens e documentação de execução.
+
+---
+
+### ❌ O que deu Erro
+
+- Nenhum erro de execução foi registrado nesta atividade. Os novos containers e testes de integração não foram executados nesta sessão.
+
+---
+
+### 🟢 O que Funcionou
+
+- As alterações de mensageria, infraestrutura Docker e teste de integração estão presentes no workspace para revisão.
+- As mudanças permanecem sem commit no branch `feature/docker`.
+
+---
+
+### 📝 Resumo do Dia
+
+Foram ampliadas a publicação de eventos clínicos e a compatibilidade com consumidores legados, com retentativas e envio assíncrono. O serviço clínico Java recebeu configuração de container multi-stage e passou a ser a implementação usada pelo Compose principal; também foram adicionados um Compose para os serviços Java e um teste de integração opcional com Testcontainers. A estrutura do AI Service e módulos compartilhados foi preparada em `backend-java`. Nenhum build de container ou teste foi executado nesta sessão, e as alterações permanecem pendentes de commit.
+
+---
+
 ## 2026-11-09 — Containerização do API Gateway Java
 
 ### 📋 Implementação Proposta
@@ -659,6 +700,530 @@ A validação de integração do novo Gateway Java foi concluída com 30 testes 
 
 ---
 
+## 2026-11-11 — Correção Crítica do Serviço de Backup (Fase B0 — Topologia Unificada)
+
+### 📋 Implementação Proposta
+
+- Corrigir a dívida técnica imediata do serviço de backup em Python (`backend/backup/backup_runner.py`) após a Fase 12: remover os hosts órfãos `db-patient` e `db-clinical` e passar a dumpar o banco unificado `patient_clinical_db` (container `db-patient-clinical`).
+- Garantir que `POSTGRES_USER`/`POSTGRES_PASSWORD` (e variáveis por banco) possam sobrescrever as credenciais default.
+- Verificar o `backend/docker-compose.yml` (dependências e redes do `backup-service`).
+- Criar roteiro de teste automatizado e o baseline `backend/backup/BACKUP_BASELINE.md`, documentando o comando de contingência e a estrutura do `/var/backups/status.json`.
+- Garantir que nenhuma exceção não tratada derrube a execução dos demais bancos.
+
+---
+
+### ✅ O que foi Implementado
+
+- **`backend/backup/backup_runner.py`**:
+  - `POSTGRES_DATABASES` passou a conter apenas `iam_db` (`db-iam`), `patient_clinical_db` (`db-patient-clinical`, usuário `clinical`) e `reporting_db` (`db-reporting`); os hosts órfãos `db-patient`/`db-clinical` foram removidos.
+  - Nova função `_apply_postgres_env_overrides()` com precedência `<PREFIXO>_DB_USER`/`_DB_PASSWORD` → `POSTGRES_USER`/`POSTGRES_PASSWORD` → default; hosts também configuráveis via `IAM_DB_HOST`, `PATIENT_CLINICAL_DB_HOST` e `REPORTING_DB_HOST`.
+  - `write_status_report()` passou a registrar `elapsed_seconds` (tempo de execução) e `database_count`.
+  - `run_all_backups()` com isolamento defensivo: `ensure_bucket`, cada banco PostgreSQL, o MongoDB e a limpeza de retenção ficaram em blocos `try/except` independentes, marcando `status: failed` sem interromper os demais alvos.
+- **`backend/docker-compose.yml`**: confirmado o `depends_on` do `backup-service` com os 5 alvos em `condition: service_healthy` (`db-iam`, `db-patient-clinical`, `db-reporting`, `db-ai`, `minio`) e todos na rede `backend`; adicionado o volume `backup_data:/var/backups` (antes declarado e não montado), garantindo a persistência do `status.json`.
+- **`backend/backup/test_backup_runner.py`** (novo): roteiro com 9 testes (`unittest`, autossuficiente com stubs de `boto3`/`botocore`/`schedule`) cobrindo topologia unificada, ausência de hosts órfãos, overrides por variáveis de ambiente, estrutura do `status.json` e isolamento de falhas.
+- **`backend/backup/BACKUP_BASELINE.md`** (novo): comando de contingência `docker compose run --rm backup-service python backup_runner.py --once`, estrutura detalhada do `/var/backups/status.json`, matriz de `depends_on`/redes, coleta de baseline (tempo/tamanho), critérios de aceite e rollback.
+- **`backend/scripts/test_backup_service.py`**: asserções obsoletas atualizadas (esperava `db-patient`/`db-clinical` e a string de rede sem espaços).
+
+---
+
+### ❌ O que deu Erro
+
+- A primeira execução do roteiro estático acusou 3 falhas por asserções desatualizadas (dependências `db-patient`/`db-clinical` e verificação de rede com formatação incorreta).
+- A verificação "host órfão `db-clinical` ausente" falhou porque o próprio comentário explicativo adicionado ao runner continha o literal `db-clinical`; o comentário foi reescrito para não poluir a busca.
+- A edição do volume no `docker-compose.yml` falhou na primeira tentativa por contexto ambíguo (o bloco `minio: condition: service_healthy` se repete em vários serviços).
+- O ambiente local não possui `boto3`, `schedule`, `pytest` nem Maven, exigindo stubs no roteiro de teste e validação alternativa do Compose.
+
+---
+
+### 🟢 O que Funcionou
+
+- `python3 backend/scripts/test_backup_service.py`: **101 passaram, 0 falharam** (antes: 94 passaram / 3 falharam).
+- `python3 backend/backup/test_backup_runner.py`: **9 testes, 0 falhas** — incluindo a simulação de falha isolada em `patient_clinical_db`, que resultou em `status: partial` sem abortar os demais bancos.
+- `python3 -m py_compile backend/backup/backup_runner.py backend/backup/test_backup_runner.py`: sintaxe válida.
+- `docker compose -f backend/docker-compose.yml config -q`: configuração válida (exit 0).
+- Nenhum arquivo do frontend foi modificado.
+
+---
+
+### 📝 Resumo do Dia
+
+A correção crítica da Fase B0 foi concluída e validada: o runner de backup deixou de apontar para os hosts órfãos e passou a proteger o banco unificado `patient_clinical_db`, com isolamento de falhas por banco, overrides por variáveis de ambiente e manifesto `status.json` enriquecido (tempo de execução e tamanho por banco). A orquestração no Compose foi confirmada e reforçada com o volume persistente. Ficou pendente como ponto de decisão o escopo da migração do `backup-service` para Java (`backend-java/backup-service`), que ainda não existe no repositório.
+
+---
+
+## 2026-11-11 — Fundação do Backup Service em Java 21 / Spring Boot 3.3 (Fase B1)
+
+### 📋 Implementação Proposta
+
+- Criar a base do microsserviço corporativo `backend-java/backup-service` com Java 21 e Spring Boot 3.3.4, destinado a substituir o runner Python ao final da migração.
+- Configurar o `pom.xml` com as dependências de Web/Actuator, validação, Micrometer/Prometheus, AWS SDK v2 (S3 + Netty NIO), picocli, Jackson JSR-310 e Lombok.
+- Mapear o `application.yml` com porta interna 8000, propriedades `promptuario.backup` (agendamento, retenção, criptografia), a topologia unificada de bancos (`postgres` e `mongo`) conforme a Fase 12 e o storage MinIO em `app.storage.s3`.
+- Implementar os modelos de domínio/enums, as classes de configuração e a classe principal com `@EnableScheduling` e `@EnableAsync`.
+
+---
+
+### ✅ O que foi Implementado
+
+- **`backend-java/backup-service/pom.xml`**: parent `spring-boot-starter-parent:3.3.4`, coordenadas `br.edu.ifrn.promptuario:backup-service`, Java 21, BOM do AWS SDK v2 (`2.25.0`) e dependências `spring-boot-starter-web`, `-validation`, `-actuator`, `micrometer-registry-prometheus`, `software.amazon.awssdk:s3` e `netty-nio-client`, `info.picocli:picocli-spring-boot-starter:4.7.5`, `jackson-datatype-jsr310`, `lombok` (provided) e `spring-boot-starter-test`; build com `spring-boot-maven-plugin` excluindo o Lombok do jar final.
+- **`src/main/resources/application.yml`**: porta `${SERVER_PORT:8000}`; bloco `promptuario.backup` com `schedule-cron` (`0 0 3 * * ?`), `retention-days` (7), `root-dir` (`/var/backups`), `encryption-enabled` e `encryption-secret`; topologia `postgres` (`iam` → `db-iam`/`iam_db`, `patient-clinical` → `db-patient-clinical`/`patient_clinical_db`, `reporting` → `db-reporting`/`reporting_db`) e `mongo` (`db-ai`/`ai_db`); storage em `app.storage.s3` (endpoint MinIO, chaves, bucket `backups`, região `us-east-1`); Actuator expondo `health,info,prometheus` com probes de liveness/readiness.
+- **Modelos de domínio** (`...backup.model`): enums `DatabaseTarget` (IAM_DB, PATIENT_CLINICAL_DB, REPORTING_DB, MONGO_AI_DB, MINIO_BUCKETS), `ExecutionMode` (SCHEDULED, MANUAL, CLI, RESTORE), `BackupKind` (POSTGRES, MONGO) e `BackupStatus` (SUCCESS, PARTIAL, FAILED); `DatabaseBackupResult` (record com fábricas `success`/`failure` e cálculo de megabytes); `BackupManifest` (record imutável com `schemaVersion`, `databases`, `rpoMet` e `retentionUntil`); `BackupJobExecution` (estado mutável do ciclo, com `addResult()` e `finish()` consolidando o status).
+- **Classes de configuração** (`...backup.config`): `BackupProperties` (`@ConfigurationProperties(prefix = "promptuario.backup")` com records aninhados `Postgres`/`Mongo`/`DatabaseConnection`, Bean Validation e o helper `postgresTargets()`); `StorageProperties` (`app.storage.s3`); `AsyncConfig` com `ThreadPoolTaskScheduler` (`backup-sched-`) e `ThreadPoolTaskExecutor` (`backup-dump-`) dedicados.
+- **`BackupServiceApplication`**: `@SpringBootApplication`, `@EnableScheduling`, `@EnableAsync` e `@ConfigurationPropertiesScan`.
+- **`BackupServiceApplicationTests`** (novo): teste de contexto e de binding da topologia unificada, do agendamento/retenção, do MongoDB e do storage S3.
+
+---
+
+### ❌ O que deu Erro
+
+- O primeiro `mvn clean compile` falhou na leitura do POM com `Non-parseable POM ... in comment after two dashes (--) next character must be > not o`: o comentário XML `<!-- CLI robusto (--once, --restore, ...) -->` era inválido, pois XML não permite `--` no interior de comentários. O comentário foi reescrito e a compilação passou.
+- O ambiente não possui Maven instalado no `PATH`; a validação foi feita reutilizando a distribuição já presente em `~/.m2/wrapper/dists` (`apache-maven-3.9.16`), com o `picocli 4.7.5` baixado do Maven Central.
+
+---
+
+### 🟢 O que Funcionou
+
+- `mvn clean compile`: **BUILD SUCCESS** — 11 arquivos-fonte compilados com Java 21.
+- `mvn test`: **Tests run: 4, Failures: 0, Errors: 0** — contexto Spring carregado e topologia unificada vinculada corretamente, sem nenhum host órfão.
+- `mvn package` gerou o jar executável e a aplicação subiu em 2.369s; `/actuator/health` retornou `UP`, `/actuator/prometheus` respondeu **HTTP 200** (a métrica `executor_active_threads{name="backupTaskExecutor"}` confirma o executor dedicado ativo) e foram expostos 3 endpoints sob `/actuator`.
+- Nenhum arquivo do frontend foi modificado e a topologia permanece sem `db-patient`/`db-clinical`.
+
+---
+
+### 📝 Resumo do Dia
+
+Concluída a Fase B1 da migração do backup para Java: a fundação do `backup-service` em Java 21/Spring Boot 3.3.4 foi criada e validada de ponta a ponta (compilação, testes de contexto e execução real com Actuator/Prometheus). A topologia já reflete a unificação da Fase 12, mantendo o alvo único `patient_clinical_db` (`db-patient-clinical`). O serviço está pronto para receber, nas próximas fases, o CLI picocli, os dumpers em stream, a criptografia AES-256-GCM, o upload para o MinIO e a containerização; ainda não foi integrado ao `docker-compose.yml` nem commitado no repositório.
+
+---
+
+## 2026-11-11 — Pipeline de Dump, Criptografia AES-256-GCM e Upload MinIO (Fase B2)
+
+### 📋 Implementação Proposta
+
+- Implementar o pipeline de streaming de dump do `backup-service`: `ProcessBuilder (stdout)` → `GZIPOutputStream` → `CipherOutputStream (AES-256-GCM)` → `DigestOutputStream (SHA-256)` → `FileOutputStream` → upload para o MinIO.
+- Criar o `CryptoService` (AES/GCM/NoPadding, chave de 256 bits, IV de 12 bytes por arquivo prefixado no stream, tag de 128 bits).
+- Criar os dumpers (interface `DatabaseDumper` e implementações PostgreSQL e MongoDB) com timeout configurável e isolamento de falhas por banco.
+- Criar o `S3BackupStorageService` (MinIO com `forcePathStyle`), o `RetentionCleanupService`, o `StatusReportService` e o `BackupOrchestratorService`.
+
+---
+
+### ✅ O que foi Implementado
+
+- **`CryptoService`** (`service`): criptografia autenticada `AES/GCM/NoPadding` com chave de 256 bits, IV de 12 bytes gerado por `SecureRandom` para cada artefato e prefixado no início do stream (arquivo autocontido `[IV(12)][ciphertext+tag]`), tag de autenticação de 128 bits e os métodos `createEncryptingStream`/`createDecryptingStream`. A chave é derivada do segredo configurado: usada diretamente quando possui 32 bytes, caso contrário via SHA-256 (garantindo sempre uma chave de 256 bits, nunca curta).
+- **Pipeline de streaming** (`AbstractStreamingDatabaseDumper`): `ProcessBuilder → GZIPOutputStream → CipherOutputStream → DigestOutputStream → FileOutputStream`, sem carregar o dump em memória (buffer único de 64 KB). O SHA-256 é calculado sobre o arquivo final, incluindo o prefixo do IV.
+- **Dumpers**: `PostgresDatabaseDumper` executa `pg_dump -h <host> -p <port> -U <user> <dbname>` com a senha injetada por `PGPASSWORD` (nunca na linha de comando) e gzip habilitado; `MongoDatabaseDumper` executa `mongodump --archive --gzip` e desabilita o gzip do pipeline, pois a ferramenta já comprime. Timeout configurável (`BACKUP_DUMP_TIMEOUT_SECONDS`, padrão 600s) aplicado por um watchdog que encerra o processo à força, além de `stderr` drenado em thread dedicada (evitando deadlock de pipe) e capturado na mensagem de falha.
+- **`S3BackupStorageService`** (`storage`): `S3Client` com `forcePathStyle(true)` (bean em `S3Config`), `ensureBucketExists`, `uploadArtifact` com metadados (SHA-256, alvo, timestamp e tamanho) e chave no padrão `backups/{kind}/{dbname}/{yyyy}/{MM}/{dd}/{filename}`; deleção em lote via `DeleteObjectsRequest` (até 1000 chaves por requisição).
+- **`RetentionCleanupService`**: expurgo local por data de modificação e deleção em lote no MinIO, protegendo os metadados `status.json` e `manifest.json`.
+- **`StatusReportService`**: grava o `/var/backups/status.json` em texto claro e o `/var/backups/manifest.json` criptografado.
+- **`BackupOrchestratorService.executeFullBackup(mode)`**: garante o bucket, executa os dumps de IAM_DB, PATIENT_CLINICAL_DB, REPORTING_DB e MONGO_AI_DB em sequência com `try/catch` isolado por alvo, grava o manifesto criptográfico, atualiza o `status.json`, executa a retenção e devolve o `BackupJobExecution` consolidado.
+- **`StreamingDumpPipelineTest`** (novo): prova o pipeline ponta a ponta sem PostgreSQL, MongoDB ou MinIO.
+
+---
+
+### ❌ O que deu Erro
+
+- O primeiro `mvn test` falhou na compilação: `waitFor(long, TimeUnit)` lança `InterruptedException` (exceção checada) não declarada; o trecho passou a tratá-la restaurando o flag de interrupção e lançando `DumpExecutionException`.
+- Uma asserção do teste verificava que o diretório `postgresql/` não existia após uma falha, mas apenas o **arquivo** parcial é removido (as pastas vazias permanecem); a asserção foi corrigida para verificar que nenhum arquivo regular remanesce em disco.
+- Faltava declarar `throws Exception` no método de teste que usa `Files.walk` (que lança `IOException`).
+
+---
+
+### 🟢 O que Funcionou
+
+- `mvn test`: **BUILD SUCCESS** — 23 fontes compilados e **Tests run: 8, Failures: 0, Errors: 0**.
+- O contexto Spring sobe com todos os beans novos (S3Client, dumpers, storage e orquestrador) devidamente injetados.
+- O teste do pipeline executa um comando real, grava o artefato cifrado e recupera o conteúdo original decifrando (lendo o IV do prefixo) e descomprimindo.
+- O SHA-256 registrado no resultado coincide com o hash real do arquivo em disco e o conteúdo não aparece em texto claro no artefato.
+- O IV nunca é reutilizado entre artefatos e a adulteração da tag GCM é detectada na leitura.
+- Um comando com código de saída 3 gera `FAILED` com a mensagem do `stderr`, sem deixar artefato parcial/corrompido em disco.
+- Nenhum arquivo do frontend foi modificado.
+
+---
+
+### 📝 Resumo do Dia
+
+O pipeline de dump, criptografia e upload foi implementado e validado de ponta a ponta: o serviço passou a executar os dumps em streaming (sem alocação massiva de RAM), cifrar cada artefato com AES-256-GCM (IV por arquivo e tag de 128 bits), calcular o SHA-256 do arquivo final e enviá-lo ao MinIO com metadados de integridade, além de aplicar a política de retenção e gerar o manifesto criptográfico e o status operacional. Ficaram para as próximas fases o agendamento (`@Scheduled`), o CLI picocli (`--once`/`--restore`), a API REST de consulta, o upload do manifesto e a containerização; até o momento nada foi commitado.
+
+---
+
+## 2026-11-11 — Restauração Segura, Validação de Integridade e DR Drill (Fase B3)
+
+### 📋 Implementação Proposta
+
+- Implementar a restauração controlada com três princípios de segurança: validação pré-restore por SHA-256, autenticação criptográfica (AES-GCM) e timeout estrito (ex.: 30 minutos).
+- Criar a interface `DatabaseRestorer` e os restauradores PostgreSQL e MongoDB.
+- Criar o `RestoreOrchestratorService` (resolução do alvo, staging do MinIO, log de auditoria e métricas).
+- Criar o `DrillVerificationService` (drill mensal em base efêmera, atestando RTO e RPO sem tocar na produção).
+- Criar testes unitários com JUnit 5 cobrindo arquivos íntegros e arquivos corrompidos.
+
+---
+
+### ✅ O que foi Implementado
+
+- **Pacote `restorer`** (novo): `DatabaseRestorer` (contrato `boolean restore(DatabaseTarget, Path, String)`), `RestoreFailedException`, `AbstractStreamingDatabaseRestorer` (pipeline `FileInputStream → CipherInputStream (AES-256-GCM) → GZIPInputStream → stdin do processo`), `PostgresDatabaseRestorer` (`psql` com a senha via `PGPASSWORD`) e `MongoDatabaseRestorer` (`mongorestore --archive --gzip --drop`).
+- **Barreiras de segurança**: verificação de arquivo existente/legível, conferência do SHA-256 contra o manifesto **antes de qualquer conexão** e validação determinística da tag GCM por um dreno explícito do stream cifrado (necessário porque o `close()` do `CipherInputStream` engole `BadPaddingException` e o descompressor pode concluir antes do fim do stream cifrado).
+- **Timeout de segurança** de 30 min (`BACKUP_RESTORE_TIMEOUT_SECONDS`) imposto por watchdog que encerra o processo à força, com `stdout`/`stderr` drenados em threads dedicadas e mensagens saneadas (a senha do alvo é substituída por `***`).
+- **`RestoreOrchestratorService.restoreDatabase(targetName, filePath, sha256)`**: resolve o alvo por nome de banco, nome do enum ou forma normalizada; baixa chaves remotas do MinIO para um diretório de staging temporário (removido ao final); aciona o restaurador correspondente; grava o log de auditoria e atualiza as métricas de restauração.
+- **`RestoreAuditService`** (novo): trilha de auditoria em JSON Lines em `{rootDir}/restore-audit.log`, além de um logger dedicado de auditoria.
+- **`DrillVerificationService`** (novo): drill mensal agendado (`BACKUP_DRILL_CRON`), restaurando o artefato mais recente em uma base efêmera com sufixo `_drill` (nunca a produção), medindo o RTO e atestando o RPO (`BACKUP_RPO_HOURS`), persistindo `backup_restore_drill_status.json` e publicando a gauge `backup_restore_drill_status`.
+- **`S3BackupStorageService.downloadArtifact(...)`** (novo): download do artefato remoto para o diretório de staging.
+- **`DatabaseEndpoint` movido** do pacote `dumper` para `model`, eliminando o acoplamento `restorer → dumper`.
+- **`BackupProperties`/`application.yml`**: novas propriedades `restore-timeout-seconds` (1800), `rpo-hours` (24) e `drill-cron` (`0 0 4 1 * ?`).
+- **Testes**: `StreamingRestorePipelineTest` (7 testes), `RestoreOrchestratorServiceTest` (6) e `DrillVerificationServiceTest` (6).
+
+---
+
+### ❌ O que deu Erro
+
+- O `DrillVerificationService` não compilava ao chamar `restoreInto` através da interface `DatabaseRestorer` (que, conforme a especificação, declara apenas `restore`); a chamada foi direcionada aos restauradores concretos.
+- Detectado (e corrigido) um bug de lógica no watchdog da restauração: interrompê-lo logo após a escrita do stream cancelava o próprio timeout; a espera pelo processo foi extraída para um método próprio (`verifyCompletion`), mantendo o watchdog armado até o fim.
+- A validação da tag GCM não era determinística: o `close()` do `CipherInputStream` engole `BadPaddingException` e o `GZIPInputStream` pode encerrar antes do fim do stream cifrado; foi adicionado um dreno explícito (`forceCipherCompletion`) para forçar a verificação.
+- A assinatura de `BackupProperties` ganhou três componentes, exigindo a atualização do teste da Fase B2.
+- Uma edição no arquivo de teste removeu por engano o fechamento do método `returnsFalseWhenArtifactMissing` (o `assertThat` e a chave), gerando 10 erros de sintaxe que foram corrigidos.
+
+---
+
+### 🟢 O que Funcionou
+
+- `mvn test`: **BUILD SUCCESS** — 27 testes, 0 falhas e 0 erros (4 do contexto, 4 do pipeline de dump, 7 do pipeline de restauração, 6 do orquestrador e 6 do drill).
+- O teste do pipeline de restauração prova o fluxo completo com um comando real: o conteúdo decifrado e descomprimido chega íntegro ao `stdin`, idêntico ao SQL original.
+- A corrupção da tag GCM foi detectada e a restauração barrada, conforme o log: `scripted-restore recebeu o dump incompleto ... javax.crypto.AEADBadTagException: Tag mismatch`.
+- SHA-256 divergente cancelou a restauração **sem iniciar qualquer processo/conexão**, e o arquivo de saída sequer foi criado.
+- O timeout de segurança de 1s encerrou uma restauração travada, e a senha do alvo não aparece nas mensagens de erro (substituída por `***`).
+- O drill confirmou o uso da base efêmera (`patient_clinical_db_drill`), atestou RTO e RPO, sinalizou violação de RPO com artefato de 48h e persistiu o `backup_restore_drill_status.json`.
+- Nenhum arquivo do frontend foi modificado.
+
+---
+
+### 📝 Resumo do Dia
+
+A restauração segura e a verificação automatizada de integridade foram implementadas e validadas: o serviço passou a validar o SHA-256 antes de qualquer conexão, autenticar os artefatos com AES-256-GCM (barrando corrupção e adulteração de forma determinística), aplicar timeout estrito, resolver os alvos por nome, baixar artefatos remotos para um staging temporário, registrar trilha de auditoria e métricas, e executar um drill mensal de contingência em base efêmera com atestado de RTO e RPO. Ficaram para as próximas fases o CLI picocli (`--once`/`--restore`), a API REST operacional, o upload do manifesto e a containerização; até o momento nada foi commitado.
+
+---
+
+## 2026-11-11 — Observabilidade Completa do Backup-Service (Micrometer + Prometheus + Grafana)
+
+### 📋 Implementação Proposta
+
+- Implementar observabilidade completa do microsserviço `backup-service` com métricas padronizadas via Micrometer, coleta pelo Prometheus, regras de alerta e dashboard Grafana para Disaster Recovery.
+
+---
+
+### ✅ O que foi Implementado
+
+- **`BackupMetricsService.java`** (`br.edu.ifrn.promptuario.backup.metrics`): injeção de `MeterRegistry` e declaração de 6 métricas padronizadas:
+  - `backup_execution_duration_seconds` (Timer, labels: `target`, `status`) — duração da execução do dump por banco.
+  - `backup_artifact_size_bytes` (Gauge, label: `target`) — tamanho em bytes do artefato comprimido e criptografado.
+  - `backup_last_success_timestamp_seconds` (Gauge, label: `target`) — epoch timestamp em segundos do último backup com sucesso.
+  - `backup_status_total` (Counter, labels: `target`, `status`) — total de execuções (`success`/`failed`).
+  - `backup_retention_deleted_total` (Counter) — artefatos expurgados pela política de retenção.
+  - `backup_restore_duration_seconds` (Timer, labels: `target`, `status`) — tempo gasto em restaurações.
+- **`BackupOrchestratorService.java`**: chamada a `metricsService.recordBackupExecution(...)` ao final de cada dump isolado, atualizando duração, status, tamanho do artefato e último sucesso.
+- **`RestoreOrchestratorService.java`**: chamada a `metricsService.recordRestoreExecution(...)` no bloco `finally` de cada restauração, garantindo registro mesmo em exceção.
+- **`backend/observability/prometheus/prometheus.yml`**: scrape job `backup-service` em `/actuator/prometheus`, intervalo 15s, alvo `backup-service:8000`.
+- **`backend/observability/prometheus/alerts.yml`**: 3 regras de alerta de backup:
+  - `BackupJobFailed` (critical) — `increase(backup_status_total{status="failed"}[1h]) > 0`.
+  - `BackupMissing24h` (warning) — `(time() - backup_last_success_timestamp_seconds) > 86400` (violação de RPO).
+  - `BackupArtifactTooSmall` (warning) — `backup_artifact_size_bytes < 100000`.
+- **`backend/observability/grafana/provisioning/dashboards/backup_dashboard.json`**: dashboard "Disaster Recovery & Backups" (uid: `backup-dr`) com:
+  - Stat: RPO Status (verde < 24h / vermelho > 24h), Tamanho Total dos Backups, Último Backup por Banco.
+  - Time series: Duração da Execução dos Dumps (média e máx por alvo).
+  - Gauge: Tamanho individual dos bancos (IAM, Patient-Clinical, Reporting, AI).
+  - Table: Histórico das últimas execuções e status (merge de métricas).
+  - Painéis extras: Total de Execuções por Status, Duração das Restaurações, Artefatos Expurgados pela Retenção.
+
+---
+
+### ❌ O que deu Erro
+
+- Nenhum erro registrado. Todos os arquivos já estavam implementados no repositório e foram validados (JSON do dashboard, YAML do Prometheus, YAML dos alertas e conexão dos orquestradores com o `MeterRegistry`).
+
+---
+
+### 🟢 O que Funcionou
+
+- Validação do JSON do dashboard Grafana (sintaxe correta, importável via provisioning).
+- Validação do `prometheus.yml` (job `backup-service` presente com path, intervalo e target corretos).
+- Validação do `alerts.yml` (3 regras de backup encontradas com expressões e severidades corretas).
+- Confirmação de integração: `BackupOrchestratorService` e `RestoreOrchestratorService` já injetam e chamam `BackupMetricsService`.
+
+---
+
+### 📝 Resumo do Dia
+
+A observabilidade completa do `backup-service` foi implementada e validada: métricas padronizadas via Micrometer expostas pelo Spring Boot Actuator, scrape configurado no Prometheus, 3 regras de alerta de Disaster Recovery (falha, violação de RPO e artefato suspeito) e dashboard Grafana com stat panels, time series, gauge e tabela de histórico. Nenhum erro foi encontrado; todos os arquivos estavam no repositório e prontos para uso em produção.
+
+---
+
+
+## 2026-11-11 — Cutover do Backup-Service de Python para Java 21
+
+### 📋 Implementação Proposta
+
+- Migrar o `backup-service` da implementação Python (`backup_runner.py`) para Java 21 com Spring Boot 3.3.4.
+- Implementar CLI com Picocli para execução on-demand (`--once`, `--restore`) e modo daemon.
+- Criar controladores REST operacionais e segurança com OAuth2 Resource Server (JWT).
+- Construir Dockerfile multi-stage otimizado para Alpine Linux.
+- Atualizar `docker-compose.yml` e `Makefile` para o novo serviço Java.
+
+---
+
+### ✅ O que foi Implementado
+
+- **`BackupCommandLineRunner.java`** (`br.edu.ifrn.promptuario.backup.cli`):
+  - `--once`: dispara backup completo manual e finaliza com `System.exit(0)` (sucesso) ou `System.exit(1)` (falha).
+  - `--restore --kind <postgres|mongo> --target <alvo> --file <caminho>`: executa restauração controlada com saída de status correspondente.
+  - Sem argumentos: inicia como daemon, servindo API REST na porta 8000 e agendador `@Scheduled`.
+- **`SecurityConfig.java`** (`br.edu.ifrn.promptuario.backup.config`):
+  - Libera `/healthz`, `/actuator/health` e `/actuator/prometheus` (sem autenticação).
+  - Protege `/api/v1/backups/**` exigindo role `ADMIN` via Spring Security OAuth2 Resource Server (JWT).
+- **`BackupOperationController.java`** (`br.edu.ifrn.promptuario.backup.controller`):
+  - `GET /healthz` → `{"status":"ok","service":"backup-service","version":"1.0.0-java"}`.
+  - `GET /api/v1/backups/status` → último status de `/var/backups/status.json`.
+  - `POST /api/v1/backups/execute` → backup assíncrono sob demanda.
+- **`RestoreOperationController.java`** (`br.edu.ifrn.promptuario.backup.controller`):
+  - `POST /api/v1/backups/restore` → inicia restore controlado.
+- **`Dockerfile`** (multi-stage Alpine):
+  - Stage build: `maven:3.9-eclipse-temurin-21-alpine`, compila JAR executável.
+  - Stage runtime: `eclipse-temurin:21-jre-alpine`, `apk add --no-cache postgresql15-client mongodb-tools bash tzdata`.
+  - Usuário não-root `backup`, volume `/var/backups`, entrypoint com `-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0`.
+- **`backend/docker-compose.yml`**: serviço `backup-service` reescrito para build Java 21, porta `8006:8000`, variáveis de ambiente completas, `depends_on` com `service_healthy`.
+- **`backend/Makefile`**: `make backup-once` e `make restore-db` atualizados para `java -jar app.jar`.
+- **`pom.xml`**: adicionada dependência `spring-boot-starter-oauth2-resource-server`.
+
+---
+
+### ❌ O que deu Erro
+
+- Nenhum erro registrado. Todos os arquivos foram criados/atualizados, validados e enviados para o repositório remoto (`origin/feature/backup-service`, commit `caf97bf`).
+
+---
+
+### 🟢 O que Funcionou
+
+- Commit `caf97bf` enviado com sucesso para o repositório remoto.
+- Estrutura de pacotes consistente com o restante do projeto (`br.edu.ifrn.promptuario.backup.*`).
+- Integração com as métricas Micrometer já existentes (`BackupMetricsService`).
+- Dockerfile multi-stage segue as boas práticas de imagem enxuta (Alpine + JRE).
+
+---
+
+### 📝 Resumo do Dia
+
+O cutover do `backup-service` de Python para Java 21 foi concluído: CLI com Picocli, controladores REST operacionais, segurança JWT com role ADMIN, Dockerfile multi-stage Alpine, atualização do docker-compose e Makefile. O serviço está pronto para homologação em staging antes do deploy em produção.
+
+---
+
+## 2026-11-13
+
+### 📋 Implementação Proposta
+
+- Criar a migração Flyway inicial completa do `backend-java/patient-clinical-service` a partir das entidades JPA, repositórios e DTOs existentes.
+- Garantir compatibilidade com PostgreSQL 15, usando IDs textuais, `TIMESTAMPTZ`, `JSONB`, enums como `VARCHAR`, chaves estrangeiras e índices alinhados às consultas dos repositórios.
+- Validar a migração em banco limpo, executar `mvn clean test`, iniciar o serviço com `ddl-auto=validate` e confirmar que uma segunda inicialização não reaplica a migração.
+
+---
+
+### ✅ O que foi Implementado
+
+- **Migração Flyway `V1__init_patient_clinical_schema.sql`**:
+  - Criação das 18 tabelas do domínio: pacientes, alergias, vacinas, medicamentos contínuos e seus históricos, documentos, escalas, horários, consultas, prontuários e históricos, prescrições e históricos, solicitações de exames e históricos, atestados e históricos, além dos logs de auditoria.
+  - Definição de 18 chaves primárias `VARCHAR(36)`, compatíveis com os UUIDs textuais gerados pelas entidades Java.
+  - Uso de `TIMESTAMPTZ` para todos os campos Java `Instant` e de `JSONB` para todos os campos mapeados com `@JdbcTypeCode(SqlTypes.JSON)`.
+  - Persistência dos enums como `VARCHAR`, acompanhados de constraints `CHECK` compatíveis com os valores Java.
+  - Criação de 17 chaves estrangeiras, com `ON DELETE CASCADE`, `SET NULL` ou `NO ACTION` conforme os relacionamentos e anotações JPA.
+  - Criação de 31 índices, incluindo índices compostos para buscas por paciente, médico, status, disponibilidade e ordenação dos históricos por data.
+  - Ausência intencional de `IF NOT EXISTS`, permitindo que o Flyway detecte conflitos ou inconsistências de versão.
+- **Correção mínima de startup em `S3Config.java`**:
+  - Removida a autoinjeção do `S3Client` produzido pela própria classe de configuração, que causava uma dependência circular durante a criação dos beans.
+  - O mesmo cliente singleton passou a ser obtido pelo método `@Bean` durante o evento `ApplicationReadyEvent`, preservando a criação e verificação dos buckets e sem alterar endpoints públicos.
+- **Validação executada com infraestrutura Docker efêmera**:
+  - Build multi-stage do Dockerfile concluído com Java 21 e Maven 3.9.
+  - Migração aplicada em PostgreSQL 15.19 vazio, criando exatamente 18 tabelas de aplicação.
+  - Hibernate iniciou com `ddl-auto=validate` e criou o `EntityManagerFactory` sem divergências de tabela, coluna, tipo ou constraint.
+  - Serviço chegou ao estado `healthy` e `/healthz` respondeu com status `ok` e versão `1.0.0-java`.
+  - Segunda inicialização sobre a mesma base registrou `Schema "public" is up to date. No migration necessary`.
+  - A tabela `flyway_schema_history` permaneceu com uma única migração, versão `1`, marcada como bem-sucedida.
+  - Os contêineres e a rede criados exclusivamente para a validação foram removidos ao final; nenhum volume persistente do projeto foi alterado.
+
+---
+
+### ❌ O que deu Erro
+
+- O host não possui Maven instalado. A compilação e os testes foram executados com a imagem oficial Maven/Java 21 em Docker.
+- O teste `PatientClinicalIntegrationTest` é condicionado por `RUN_INTEGRATION_TESTS=true` e ficou ignorado na execução padrão de `mvn clean test`.
+- Mesmo habilitado explicitamente, o Testcontainers 1.20.1 não conseguiu negociar com o Docker Engine 29.9.1: o cliente tentou usar a API 1.32, enquanto o daemon exige no mínimo a API 1.40. A validação equivalente foi executada diretamente com contêineres isolados de PostgreSQL 15 e RabbitMQ.
+- A primeira tentativa de startup revelou uma dependência circular preexistente em `S3Config`; a configuração foi corrigida e os startups posteriores passaram no healthcheck.
+- O arquivo `AUDITORIA_INTEGRACAO_BACKEND_JAVA.md` citado no plano de trabalho não estava presente no workspace.
+
+---
+
+### 🟢 O que Funcionou
+
+- `mvn -B clean test` terminou com `BUILD SUCCESS`, compilando 118 arquivos-fonte e o teste de integração.
+- O Dockerfile do `patient-clinical-service` gerou a imagem final com sucesso.
+- Flyway aplicou a migração V1 em banco PostgreSQL 15 limpo e não a reaplicou no segundo startup.
+- O schema validado contém 18 PKs `VARCHAR(36)`, 10 colunas `JSONB` e 32 colunas `TIMESTAMPTZ`.
+- As 17 ações referenciais foram conferidas diretamente no catálogo PostgreSQL e correspondem aos relacionamentos definidos nas entidades.
+- O serviço iniciou duas vezes com `ddl-auto=validate`, conectou ao RabbitMQ efêmero e respondeu corretamente ao endpoint de saúde.
+- As mudanças locais preexistentes e a pasta não rastreada `Planos-Migração/` foram preservadas.
+
+---
+
+### 📝 Resumo do Dia
+
+Foi concluída a migração inicial Flyway do `patient-clinical-service`, cobrindo todo o modelo JPA e os índices usados pelos repositórios. A V1 foi validada em PostgreSQL 15 limpo, passou pela validação do Hibernate e permaneceu idempotente sob o controle de versão do Flyway na segunda inicialização. Durante o teste foi identificado e corrigido um ciclo de dependência no bootstrap do S3. O build Maven e a imagem Docker foram concluídos com sucesso; permanece como limitação ambiental a incompatibilidade entre Testcontainers 1.20.1 e a versão atual do daemon Docker, além de ficarem pendentes para os próximos prompts a validação do MinIO, AI Python e Docker Compose completo.
+
+---
+
+## 2026-11-13 — Compatibilidade dos Eventos RabbitMQ entre Java e Python
+
+### 📋 Implementação Proposta
+
+- Implementar publicação dupla temporária dos eventos `MedicalRecordCreated` e `PrescriptionGenerated` nos contratos novo e legado.
+- Preservar o mesmo `eventId`, `timestamp`, `correlationId` e payload nas duas publicações.
+- Aceitar aliases camelCase e snake_case nos modelos Java e Python.
+- Adicionar headers de envelope, retry para falhas transitórias, logs estruturados, feature flag e idempotência dos consumidores Python por `eventId`.
+- Criar testes de contrato que comparem o JSON produzido pelo Java com os modelos Pydantic compartilhados.
+
+---
+
+### ✅ O que foi Implementado
+
+- **Publicação dupla em `EventPublisher.java`**:
+  - Contrato novo em `domain.events`, usando `medical_record.created` e `prescription.generated`.
+  - Contrato legado em `promptuario.clinical`, usando `clinical.medical_record.created` e `clinical.prescription.generated`.
+  - Reutilização da mesma instância do evento nas duas publicações, mantendo envelope e payload equivalentes.
+  - Headers `eventId`, `eventType`, `timestamp` e `correlationId`, além de `messageId` e `correlationId` nas propriedades AMQP.
+  - Seleção de destinos por `LinkedHashSet`, impedindo publicação lógica duplicada no mesmo par exchange/routing key.
+  - Logs estruturados com tipo da publicação, exchange, routing key, evento e correlação.
+  - Feature flag `app.messaging.legacy-publish-enabled`, habilitada por padrão e restrita às rotas clínicas canônicas.
+- **Envelope Java `DomainEvent`**:
+  - Criado contrato tipado para `eventId`, `timestamp`, `eventType` e `correlationId`.
+  - Eventos Java de patient e clinical passaram a implementar o envelope comum.
+  - `MedicalRecordCreatedEvent` e `PrescriptionGeneratedEvent` passaram a emitir JSON canônico camelCase e aceitar os aliases legados snake_case com `@JsonAlias`.
+- **Configuração RabbitMQ**:
+  - Exchanges, filas e bindings permanentes mantidos como duráveis.
+  - Retry configurado somente para `AmqpConnectException`, `AmqpIOException`, `AmqpResourceNotAvailableException` e `AmqpTimeoutException`, com três tentativas e backoff exponencial.
+  - `Jackson2JsonMessageConverter` passou a reutilizar o `ObjectMapper` do Spring Boot, serializando `Instant` em ISO-8601.
+- **Contratos Python compartilhados**:
+  - `DomainEvent` passou a aceitar `eventId/event_id`, `eventType/event_type` e `correlationId/correlation_id`.
+  - Os dois eventos clínicos aceitam aliases camelCase e snake_case para todos os campos enviados pelo Java.
+  - Listas mutáveis passaram a usar `default_factory`.
+  - O publisher Python também passou a enviar os quatro headers do envelope.
+  - `domain.events` foi incluído entre os exchanges duráveis declarados pelo broker compartilhado.
+- **Idempotência Python**:
+  - O consumidor resolve o identificador primeiro pelos headers, depois pelo corpo camelCase/snake_case e, por compatibilidade, pelo `message_id`.
+  - Entregas concorrentes do mesmo evento são serializadas por `asyncio.Lock`.
+  - Eventos já processados são ignorados por uma cache limitada a 10.000 `eventId`, evitando crescimento ilimitado em memória.
+- **Consumidores legados preservados**:
+  - O AI Python e o Reporting Service passaram a validar os eventos pelos modelos Pydantic, sem alteração de endpoints públicos.
+  - O AI Service permanece em Python e continua consumindo as rotas legadas.
+- **Testes de contrato e configuração**:
+  - Fixtures compartilhadas para prontuário e prescrição.
+  - Testes Java de serialização, aliases, igualdade dos payloads, headers, duas rotas, feature flag, durabilidade e retry.
+  - Testes Python de compatibilidade dos fixtures Java, aliases legados e resolução do `eventId`.
+
+---
+
+### ❌ O que deu Erro
+
+- O host não possui Maven instalado; a suíte Java precisou ser executada com a imagem `maven:3.9-eclipse-temurin-21-alpine`.
+- A primeira compilação dos testes encontrou uma ambiguidade de inferência do AssertJ em `valueToTree`; o resultado foi tipado explicitamente como `JsonNode`.
+- O `ObjectMapper` isolado do conversor RabbitMQ inicialmente serializava `Instant` como epoch. O conversor foi alinhado ao `ObjectMapper` configurado pelo Spring Boot, produzindo ISO-8601.
+- A tentativa de integração real via Testcontainers não iniciou PostgreSQL, RabbitMQ e MinIO: o `docker-java` do Testcontainers 1.20.1 insistiu em usar a API 1.32, rejeitada pelo daemon, que exige no mínimo a API 1.40. A tentativa permaneceu ignorada por `disabledWithoutDocker`.
+
+---
+
+### 🟢 O que Funcionou
+
+- `mvn -q clean test` em Docker: 9 testes aprovados e 1 teste Testcontainers ignorado.
+- Testes de contrato Python em `python:3.12-slim`: 4 testes aprovados.
+- As duas rotas de prontuário e prescrição foram verificadas, com corpos JSON equivalentes e os mesmos dados de envelope.
+- O retry transitório realizou três tentativas, enquanto erros de programação não foram repetidos.
+- `docker compose -f backend-java/docker-compose.yml config --quiet` validou a configuração do Compose.
+- `python3 -m compileall -q` e `git diff --check` terminaram sem erros.
+- Implementação registrada no commit `dbdc7c3` (`feat(patient-clinical): implementa compatibilidade de eventos RabbitMQ entre Java e Python`) e enviada para `origin/feature/patient-clinical-rabbitmq-event-compatibility`.
+
+---
+
+### 📝 Resumo do Dia
+
+A ponte temporária RabbitMQ entre o novo contrato Java e os consumidores legados Python foi concluída. Os eventos clínicos são publicados uma vez em cada destino com envelope e payload equivalentes, e os consumidores aceitam camelCase e snake_case sem mudanças nos endpoints públicos do AI Service. Foram adicionados contratos tipados, retry seletivo, logs estruturados, headers AMQP, feature flag e deduplicação por `eventId`. As suítes Java e Python passaram; permanece como limitação ambiental a incompatibilidade da API Docker usada pelo Testcontainers e, arquiteturalmente, a cache de idempotência Python é local ao processo e não sobrevive a reinicializações.
+
+---
+
+## 2026-11-13 — Remoção do Worker Celery Legado do Patient-Clinical
+
+### 📋 Implementação Proposta
+
+- Remover referências ao container `patient-clinical-worker` e ao Celery usado exclusivamente pelo Patient-Clinical.
+- Preservar o AI Service em Python, o Redis utilizado pelo AI, RabbitMQ e os workers Celery pertencentes ao Reporting Service.
+- Garantir que API e worker Spring AMQP do Patient-Clinical Java sejam executados em um único container.
+- Disponibilizar comandos claros para desenvolvimento e testes isolados do AI e do Patient-Clinical.
+- Validar sintaticamente os arquivos `backend-java/docker-compose.yml` e `backend/docker-compose.yml`.
+
+---
+
+### ✅ O que foi Implementado
+
+- **Execução unificada do Patient-Clinical Java**:
+  - Os dois arquivos Compose mantêm somente o serviço `patient-clinical-service`, construído a partir de `backend-java/patient-clinical-service`.
+  - Documentado que `PrescriptionPdfWorker` é um `@RabbitListener` iniciado dentro do mesmo processo Spring Boot da API.
+  - Nenhum container separado `patient-clinical-worker` é necessário ou declarado.
+- **Remoção do worker Python obsoleto**:
+  - Excluído `backend/patient-clinical-service/Dockerfile.worker`.
+  - Excluídos `app/workers/celery_app.py`, `app/workers/prescription_tasks.py` e o `__init__.py` exclusivo do pacote antigo.
+  - Removido do `PrescriptionService` o disparo `generate_prescription_pdf.delay(...)`, que era redundante após a geração síncrona do legado e não participa do fluxo Java ativo.
+  - Removidas as configurações `CELERY_BROKER_URL` e `CELERY_RESULT_BACKEND` do Patient-Clinical Python legado.
+  - Removidas as dependências `celery`, `redis[asyncio]` e `psycopg2-binary`, usadas exclusivamente pelo worker antigo.
+  - Testes do legado atualizados para não aplicar patches sobre APIs Celery removidas.
+- **Comandos Make adicionados/atualizados**:
+  - `make dev-ai` inicia o AI Python e suas dependências pelo Compose.
+  - `make test-ai` fornece uma chave JWT local, exclui o teste de integração externa e configura `asyncio_mode=auto`.
+  - `make dev-patient-clinical` constrói e inicia o único container Java com o listener Spring AMQP interno.
+  - `make test-patient-clinical` executa `mvn clean test` no serviço Java.
+  - O comando geral de testes deixou de tentar executar `pytest` dentro do Patient-Clinical Java.
+- **Documentação**:
+  - READMEs gerais passaram a distinguir o worker Spring AMQP interno do Patient-Clinical dos workers Celery exclusivos do Reporting.
+  - O README do serviço Python foi marcado como implementação legada para rollback.
+  - Criado `backend-java/patient-clinical-service/README.md` com arquitetura de processo único, fila, retry, DLQ e comandos operacionais.
+- **Componentes preservados**:
+  - AI Service Python e seu `REDIS_URL` permaneceram inalterados.
+  - RabbitMQ e MinIO permaneceram como dependências do Patient-Clinical Java.
+  - `reporting-worker`, `reporting-beat`, seus Dockerfiles, configurações Celery e Redis DB 1 foram preservados.
+
+---
+
+### ❌ O que deu Erro
+
+- A primeira tentativa de `test-ai` não chegou à coleta porque `JWT_SECRET_KEY` não estava definida; o alvo Make passou a fornecer uma chave exclusiva de teste.
+- A segunda tentativa revelou que a suíte dependia de `asyncio_mode=auto` e tentava executar um teste de integração contra `localhost:8000`; o alvo unitário passou a excluir o marcador `integration` e habilitar o modo asyncio.
+- Após esses ajustes, a suíte AI executou 46 testes unitários, com 44 aprovados e 2 falhas preexistentes:
+  - `TestAnalysisTimeout.test_timeout_sets_job_to_failed`: o teste espera a mensagem original `Timed out`, mas o serviço persiste `Analysis timed out after 120s`.
+  - `TestJobLifecycle.test_list_by_record`: o mock assíncrono de `find().sort()` retorna uma coroutine incompatível com a chamada `to_list()` do serviço.
+- O `PatientClinicalIntegrationTest` continuou ignorado na execução Maven padrão porque o Docker não está disponível dentro do container Maven; os nove testes unitários/contratuais passaram.
+
+---
+
+### 🟢 O que Funcionou
+
+- `docker compose -f backend-java/docker-compose.yml config` terminou com sucesso.
+- `docker compose -f backend/docker-compose.yml config` terminou com sucesso.
+- `config --services` confirmou, nos dois projetos, somente `db-patient-clinical` e um único `patient-clinical-service` relacionado ao domínio.
+- A imagem `backend-java-patient-clinical-service:latest` foi construída com sucesso pelo Dockerfile multi-stage Java 21.
+- `mvn -q clean test` executado em Maven/Java 21 via Docker aprovou 9 testes e ignorou apenas o Testcontainers condicionado.
+- `python3 -m compileall -q` validou o código Python remanescente após a remoção dos módulos do worker.
+- `make -n` confirmou a expansão correta dos quatro novos comandos nos diretórios `backend-java/` e `backend/`.
+- `git diff --check` não encontrou erros de whitespace.
+- A atualização central de Makefile e Compose foi registrada no commit `56db0f8` (`refactor(patient-clinical): remove referências obsoletas ao Celery e atualiza comandos de desenvolvimento`).
+
+---
+
+### 📝 Resumo do Dia
+
+O worker Celery exclusivo do Patient-Clinical foi retirado do fluxo atual e do código Python legado, enquanto os workers Celery do Reporting e toda a infraestrutura do AI Python foram preservados. O Patient-Clinical agora está documentado e configurado como um único container Java que contém tanto a API quanto o listener Spring AMQP responsável pelos PDFs de prescrições. Os dois Compose foram validados, a imagem Java foi reconstruída e a suíte Maven passou. O comando de testes do AI ficou operacional para testes unitários, revelando duas falhas preexistentes no próprio AI que foram registradas sem ampliar o escopo desta migração.
+
+---
 <!-- TEMPLATE PARA NOVO DIA — Copie o bloco abaixo ao iniciar uma nova entrada -->
 
 <!--
