@@ -2,8 +2,10 @@ package br.edu.ifrn.promptuario.reporting.repository;
 
 import br.edu.ifrn.promptuario.reporting.model.DailyStats;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -14,6 +16,19 @@ public interface DailyStatsRepository extends JpaRepository<DailyStats, String> 
             String statDate, String statType, String entityId);
 
     Optional<DailyStats> findByStatDateAndStatTypeAndEntityIdIsNull(String statDate, String statType);
+
+    @Modifying
+    @Transactional
+    @Query(value = """
+            INSERT INTO daily_stats (id, stat_date, stat_type, entity_id, value, metadata, updated_at)
+            VALUES (:id, :statDate, :statType, :entityId, 1, CAST('{}' AS jsonb), CURRENT_TIMESTAMP)
+            ON CONFLICT (stat_date, stat_type, entity_id_key)
+            DO UPDATE SET value = daily_stats.value + 1, updated_at = CURRENT_TIMESTAMP
+            """, nativeQuery = true)
+    int incrementMetricAtomically(@Param("id") String id,
+                                  @Param("statDate") String statDate,
+                                  @Param("statType") String statType,
+                                  @Param("entityId") String entityId);
 
     List<DailyStats> findByStatTypeAndStatDateBetweenOrderByStatDateDesc(
             String statType, String fromDate, String toDate);
