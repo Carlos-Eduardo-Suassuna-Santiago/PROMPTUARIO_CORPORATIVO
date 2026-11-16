@@ -222,6 +222,8 @@ services:
       DB_REPORTING_USER: reporting
       DB_REPORTING_PASS: ${DB_REPORTING_PASSWORD:-reporting_pass}
       RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USERNAME: promptuario
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-promptuario_pass}
       S3_ENDPOINT: http://minio:9000
       S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
       S3_ACCESS_KEY: promptuario

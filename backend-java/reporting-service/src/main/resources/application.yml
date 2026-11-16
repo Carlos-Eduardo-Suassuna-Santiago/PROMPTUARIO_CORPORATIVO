@@ -19,6 +19,8 @@ spring:
   rabbitmq:
     host: "${RABBITMQ_HOST:localhost}"
     port: 5672
+    username: "${RABBITMQ_USERNAME:promptuario}"
+    password: "${RABBITMQ_PASSWORD:promptuario_pass}"
 
 app:
   messaging:
