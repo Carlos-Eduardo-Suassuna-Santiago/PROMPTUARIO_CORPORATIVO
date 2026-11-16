@@ -6,6 +6,7 @@
 
 ## Índice
 
+- [2026-11-15 — Reporting Service: Fase 3](#2026-11-15--reporting-service-fase-3)
 - [2026-11-15 — Reporting Service: Fase 1](#2026-11-15--reporting-service-fase-1)
 - [2026-08-28](#2026-08-28)
 
@@ -82,6 +83,48 @@ Dia dedicado à organização e padronização da documentação do projeto. O d
 ### 📝 Resumo do Dia
 
 O bootstrap da Fase 1 do Reporting Service foi criado com dependências e configurações alinhadas ao plano de migração. A compilação Maven foi validada com sucesso por meio do wrapper já existente no repositório, apesar de o executável `mvn` não estar instalado no host. O serviço está pronto para avançar à Fase 2, que criará o schema inicial do banco via Flyway.
+
+---
+
+## 2026-11-15 — Reporting Service: Fase 3
+
+### 📋 Implementação Proposta
+
+- Mapear os enums de relatórios, entidades JPA e repositórios Spring Data do `backend-java/reporting-service`.
+- Configurar JSONB com Hibernate 6, datas de auditoria, geração textual de UUIDs e consultas agregadas para métricas e produtividade médica.
+- Validar a compilação/testes Maven e registrar o resultado.
+
+---
+
+### ✅ O que foi Implementado
+
+- Criados os enums `ReportType`, `OutputFormat` e `ReportStatus` em `model/enums`, persistidos como `VARCHAR` nas entidades.
+- Criadas as entidades `ReportJob`, `ReportSchedule`, `DailyStats`, `WebhookConfig`, `WebhookDeliveryLog` e `ReportAuditLog`, alinhadas às tabelas da migração V1.
+- Mapeados campos JSONB com `@JdbcTypeCode(SqlTypes.JSON)`, timestamps com `@CreationTimestamp`/`@UpdateTimestamp`, e IDs UUID textuais com `@PrePersist`.
+- Adicionados construtores de domínio e construtores sem argumentos protegidos para uso do JPA; o log de auditoria foi marcado como imutável para impedir alterações posteriores.
+- Criados repositórios para jobs, estatísticas diárias, agendamentos, configurações e logs de webhook e auditoria.
+- Adicionadas consultas paginadas para jobs, consulta de schedules/webhooks ativos, agregação de métricas entre datas e produtividade agrupada por `entityId` (alias `doctorId`).
+
+---
+
+### ❌ O que deu Erro
+
+- A primeira compilação identificou imports incorretos de `@UpdateTimestamp` como Jakarta Persistence; a anotação pertence ao Hibernate e os imports foram corrigidos antes da validação final.
+- Não existem testes automatizados no módulo nesta etapa; `mvn test` compilou o código, mas não encontrou testes para executar.
+
+---
+
+### 🟢 O que Funcionou
+
+- `clean test` finalizado com `BUILD SUCCESS` usando Java 21 e o Maven Wrapper do Gateway apontado para o POM do Reporting Service.
+- As 17 fontes Java do módulo foram compiladas com sucesso.
+- `git diff --check` concluiu sem apontar problemas de whitespace.
+
+---
+
+### 📝 Resumo do Dia
+
+A camada de persistência da Fase 3 foi implementada para o Reporting Service, incluindo seis entidades, três enums e repositórios com consultas paginadas e agregadas. O mapeamento JSONB usa os tipos JDBC do Hibernate 6 e os nomes/tipos das colunas correspondem ao schema da Fase 2. A compilação Maven passou; a suíte não possui testes ainda, então a validação desta fase foi de compilação.
 
 ---
 
