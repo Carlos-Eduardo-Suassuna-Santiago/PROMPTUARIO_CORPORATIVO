@@ -6,6 +6,7 @@
 
 ## Índice
 
+- [2026-11-15 — Reporting Service: Fase 8](#2026-11-15--reporting-service-fase-8)
 - [2026-11-15 — Reporting Service: Fase 7](#2026-11-15--reporting-service-fase-7)
 - [2026-11-15 — Reporting Service: Fase 6](#2026-11-15--reporting-service-fase-6)
 - [2026-11-15 — Reporting Service: Fase 5](#2026-11-15--reporting-service-fase-5)
@@ -302,6 +303,50 @@ A Fase 6 implementou a integração S3/MinIO para armazenar relatórios, criar o
 ### 📝 Resumo do Dia
 
 A Fase 7 implementou a orquestração do Reporting Service: jobs são auditados e publicados após commit; workers processam e armazenam exportações com transições de estado idempotentes; schedules usam Cron Spring e claim atômico; webhooks são assinados e enviados em executor assíncrono com timeout e retries atrasados. JSON foi incluído como formato de exportação. A suíte passou com 15 testes; ainda não foi executada integração real com broker, banco, MinIO ou endpoint webhook.
+
+---
+
+## 2026-11-15 — Reporting Service: Fase 8
+
+### 📋 Implementação Proposta
+
+- Configurar os listeners do Spring AMQP (`DomainEventConsumer`) para escutar os eventos de domínio emitidos pelos outros microsserviços (`patient.created`, `appointment.created`, `appointment.cancelled`, `medical_record.created`, `prescription.generated`) e atualizar atomicamente as métricas analíticas diárias na tabela `daily_stats`.
+- Implementar idempotência via tabela `processed_domain_events` para evitar contagem duplicada em reenvios do RabbitMQ.
+- Implementar `DashboardStatsService` com leituras agregadas para consultas, novos pacientes, produtividade médica e resumo de KPIs do dashboard.
+- Validar com testes automatizados e atualizar o diário de bordo.
+
+---
+
+### ✅ O que foi Implementado
+
+- Criado `RabbitMQConfig` com fila durável `reporting.events.queue`, TopicExchange `domain.events`, bindings para as cinco routing keys de domínio e `Jackson2JsonMessageConverter` para desserialização automática.
+- Criado `DomainEventConsumer` com `@RabbitListener`, resolução de tipo de evento a partir da routing key ou do corpo, cálculo da data da métrica em UTC a partir dos campos de data do evento (`scheduledAt`, `timestamp`, `createdAt`, etc.) e incremento atômico por `stat_type`/`stat_date`/`entity_id`.
+- Implementada idempotência com `ProcessedDomainEvent` e `ProcessedDomainEventRepository.insertIfAbsent` (INSERT ... ON CONFLICT DO NOTHING), de modo que a gravação do inbox e o incremento da métrica ocorrem na mesma transação.
+- Criada migração `V2__event_idempotency_and_daily_stats_upsert.sql` com a tabela `processed_domain_events`, normalização de `entity_id` nulo via coluna gerada `entity_id_key` e índice único em `daily_stats(stat_date, stat_type, entity_id_key)`, permitindo upsert atômico para métricas globais e por médico.
+- Atualizado `DailyStatsRepository` com `incrementMetricAtomically` (INSERT ... ON CONFLICT DO UPDATE incrementando `value`) e consultas agregadas por período e por médico.
+- Criado `DashboardStatsService` com `getDailyConsultations`, `getNewPatientsStats`, `getDoctorProductivityStats` e `getSummaryMetrics`, consumindo dados pré-agregados.
+- Adicionados testes `DomainEventConsumerTest` (3) e `DashboardStatsServiceTest` (1).
+
+---
+
+### ❌ O que deu Erro
+
+- Nenhum erro permaneceu. Durante a revisão, a compatibilidade de nomes de eventos entre produtores Java/Python (ex.: `clinical.appointment.created`, `promptuario.patient.created`) foi tratada no `metricFor`, evitando perda de métricas por divergência de routing key.
+
+---
+
+### 🟢 O que Funcionou
+
+- `clean test` concluiu com `BUILD SUCCESS` usando Java 21 e o Maven Wrapper do Gateway.
+- Foram compiladas 43 fontes Java de produção e 9 fontes de teste; 19 testes passaram, sem falhas ou erros.
+- Testes confirmaram incremento de métrica usando data agendada (UTC), incremento de consultas por médico vinculando `doctorId`, deduplicação de evento redelivered e resumo de KPIs do dashboard para a data atual em UTC.
+- `git diff --check` concluiu sem apontar problemas de whitespace.
+
+---
+
+### 📝 Resumo do Dia
+
+A Fase 8 implementou a consolidação contínua de métricas do Reporting Service: eventos de domínio publicados pelos demais microsserviços são consumidos via RabbitMQ e atualizam atomicamente a tabela `daily_stats`, com idempotência garantida por inbox transacional. O `DashboardStatsService` passa a servir consultas, novos pacientes, produtividade médica e resumo de KPIs a partir de dados pré-agregados. A suíte passou com 19 testes. Ainda não foi executada integração real com broker, banco ou endpoints de produção.
 
 ---
 
