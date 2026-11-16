@@ -15,6 +15,48 @@
 - [2026-11-11](#2026-11-11--cutover-do-backup-service-de-python-para-java-21)
 - [2026-11-13 — Entrada mais recente](#2026-11-13)
 - [2026-11-16 — Fase 9 da migração do Reporting Service](#2026-11-16--fase-9-da-migração-do-reporting-service)
+- [2026-11-16 — Auditoria da migração do Reporting Service](#2026-11-16--auditoria-da-migração-do-reporting-service)
+
+---
+
+## 2026-11-16 — Auditoria da migração do Reporting Service
+
+### 📋 Revisão Executada
+
+- Auditoria de rastreabilidade do `backend-java/reporting-service` contra o plano de migração e os nove prompts de implementação, incluindo código Java, serviço Python legado, arquivos Compose, Dockerfile e testes.
+
+---
+
+### ✅ Conformidades Confirmadas
+
+- **Fases 1 a 4:** Java 21/Spring Boot 3.3.4, dependências de JPA/Flyway/AMQP/S3/exportadores, configuração na porta 8000, entidades, repositórios, records DTO com `snake_case` e validações estão presentes.
+- **Fases 5 e 6:** exportadores CSV (com BOM UTF-8), XLSX em streaming (`SXSSFWorkbook`) e PDF estão implementados; MinIO usa AWS SDK v2, bucket `reports`, chaves estruturadas e URLs pré-assinadas de 60 minutos.
+- **Fases 7 e 8:** jobs são executados por `@RabbitListener`, o scheduler nativo usa `@Scheduled`, webhooks possuem HMAC-SHA256, timeout de 5 segundos e retentativas assíncronas; eventos de domínio atualizam `daily_stats` com inbox idempotente e upsert atômico.
+- **Fase 9:** controladores, health check, Resource Server JWT HMAC, Dockerfile multi-stage, usuário não-root e mapeamento `8005:8000` estão implementados na composição Java. A imagem runtime aferida mede 260,8 MB.
+- Corrigida a configuração efetiva de conexão AMQP: `application.yml` e `backend-java/docker-compose.yml` agora propagam `RABBITMQ_USERNAME` e `RABBITMQ_PASSWORD`, compatíveis com o usuário configurado no broker.
+
+---
+
+### ⚠️ Pendências e Divergências Encontradas
+
+- **Cutover do Compose legado (alta prioridade):** o prompt da Fase 9 cita `backend/docker-compose.yml`, mas esse arquivo ainda sobe o Reporting Python e mantém `reporting-worker` e `reporting-beat` Celery. A troca ocorreu apenas em `backend-java/docker-compose.yml`. É necessário definir o Compose canônico ou atualizar também o arquivo legado antes de declarar a migração definitiva.
+- **Paridade funcional ampliada (média prioridade):** a API Python ainda possui endpoints que não foram migrados para Java, como `/api/v1/reports/export/custom`, `/export/multi-sheet`, endpoints de auditoria específica/cross-service e operações adicionais de schedules/webhooks. Esses endpoints não aparecem no escopo explícito dos nove prompts, mas impedem paridade total com o FastAPI.
+- **Contratos de schedules/webhooks (média prioridade):** as respostas Java expõem um subconjunto dos campos da API Python e os DTOs de criação não aceitam todos os campos legados configuráveis (`active`, `max_retries`, `retry_interval_seconds`).
+- **Critério de integração E2E (bloqueado por infraestrutura):** `ReportingIntegrationTest` está implementado e compila, mas a execução integral local foi bloqueada porque o daemon Docker recebeu `401 UNAUTHORIZED` ao baixar a imagem MinIO pública. A execução deve ser repetida em homologação com mirror acessível usando `-Dminio.test.image=<imagem-do-mirror>`.
+
+---
+
+### 🟢 Validações
+
+- Compilação de produção e testes concluída no estágio Maven do Dockerfile.
+- Suíte sem o E2E bloqueado: 19 testes executados, 0 falhas e 0 erros.
+- `docker compose -f backend-java/docker-compose.yml config --quiet` validado após a correção AMQP.
+
+---
+
+### 📝 Parecer
+
+A migração está **conforme com o núcleo técnico e com o escopo funcional dos nove prompts**, mas não pode ser considerada **100% concluída em paridade/cutover** enquanto o `backend/docker-compose.yml` legado continuar ativo com Python/Celery e enquanto os endpoints avançados ainda exclusivos do FastAPI não receberem decisão explícita de migração, descontinuação ou manutenção. O bloqueio de registry também impede atestar o critério de 100% do E2E nesta máquina.
 
 ---
 
