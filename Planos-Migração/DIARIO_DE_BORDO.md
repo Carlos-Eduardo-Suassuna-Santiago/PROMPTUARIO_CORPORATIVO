@@ -6,6 +6,7 @@
 
 ## Índice
 
+- [2026-11-15 — Reporting Service: Fase 4](#2026-11-15--reporting-service-fase-4)
 - [2026-11-15 — Reporting Service: Fase 3](#2026-11-15--reporting-service-fase-3)
 - [2026-11-15 — Reporting Service: Fase 1](#2026-11-15--reporting-service-fase-1)
 - [2026-08-28](#2026-08-28)
@@ -125,6 +126,46 @@ O bootstrap da Fase 1 do Reporting Service foi criado com dependências e config
 ### 📝 Resumo do Dia
 
 A camada de persistência da Fase 3 foi implementada para o Reporting Service, incluindo seis entidades, três enums e repositórios com consultas paginadas e agregadas. O mapeamento JSONB usa os tipos JDBC do Hibernate 6 e os nomes/tipos das colunas correspondem ao schema da Fase 2. A compilação Maven passou; a suíte não possui testes ainda, então a validação desta fase foi de compilação.
+
+---
+
+## 2026-11-15 — Reporting Service: Fase 4
+
+### 📋 Implementação Proposta
+
+- Criar os DTOs do Reporting Service como Java Records imutáveis com validações Jakarta.
+- Preservar compatibilidade com o contrato legado/Frontend serializando propriedades em snake_case e validar a serialização.
+
+---
+
+### ✅ O que foi Implementado
+
+- Criados os nove records: `ReportExportRequestDTO`, `ReportJobResponseDTO`, `DashboardSummaryDTO`, `DailyStatItemDTO`, `DoctorProductivityDTO`, `ScheduleCreateDTO`, `ScheduleResponseDTO`, `WebhookCreateDTO` e `WebhookResponseDTO`.
+- Aplicada estratégia Jackson `SnakeCaseStrategy` aos DTOs, mantendo os nomes Java idiomáticos e emitindo propriedades como `report_type`, `total_consultations_today` e `download_url`.
+- Adicionadas validações Jakarta para os campos obrigatórios e limites definidos; o webhook valida URL, tamanho de segredo (16–128) e descrição conforme o contrato legado.
+- Mapas e listas opcionais recebem defaults seguros e cópias não modificáveis, evitando valores nulos e alterações externas após a criação dos records.
+- Implementado `ReportJobResponseDTO.fromEntity(ReportJob, String)` para criar a resposta a partir da entidade e da URL pré-assinada.
+- Criado teste de serialização para verificar enumeração e nomes snake_case do pedido e do resumo do dashboard.
+
+---
+
+### ❌ O que deu Erro
+
+- Nenhum erro permaneceu. Durante a revisão do contrato, a validação de URL foi mantida compatível com URLs HTTP e HTTPS, como no `HttpUrl` do serviço Python.
+
+---
+
+### 🟢 O que Funcionou
+
+- `clean test` concluiu com `BUILD SUCCESS` usando Java 21 e o Maven Wrapper do Gateway.
+- As 26 fontes Java de produção e o teste foram compilados; o teste `DtoSerializationTest` passou (1 teste, 0 falhas, 0 erros).
+- `git diff --check` concluiu sem apontar problemas de whitespace.
+
+---
+
+### 📝 Resumo do Dia
+
+A Fase 4 do Reporting Service adicionou DTOs imutáveis em Java Records, com validações alinhadas às entradas do serviço e serialização snake_case compatível com o contrato FastAPI consumido pelo frontend. Também foi implementada a conversão de entidade de job para DTO e uma verificação automatizada de serialização. A compilação e o teste de contrato passaram.
 
 ---
 
