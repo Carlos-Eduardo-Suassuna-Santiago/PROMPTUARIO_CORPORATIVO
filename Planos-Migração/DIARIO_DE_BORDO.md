@@ -6,6 +6,7 @@
 
 ## Índice
 
+- [2026-11-15 — Reporting Service: Fase 2](#2026-11-15--reporting-service-fase-2)
 - [2026-11-15 — Reporting Service: Fase 1](#2026-11-15--reporting-service-fase-1)
 - [2026-08-28](#2026-08-28)
 
@@ -82,6 +83,46 @@ Dia dedicado à organização e padronização da documentação do projeto. O d
 ### 📝 Resumo do Dia
 
 O bootstrap da Fase 1 do Reporting Service foi criado com dependências e configurações alinhadas ao plano de migração. A compilação Maven foi validada com sucesso por meio do wrapper já existente no repositório, apesar de o executável `mvn` não estar instalado no host. O serviço está pronto para avançar à Fase 2, que criará o schema inicial do banco via Flyway.
+
+---
+
+## 2026-11-15 — Reporting Service: Fase 2
+
+### 📋 Implementação Proposta
+
+- Criar a migração Flyway V1 do `reporting-service` para PostgreSQL 15, com as seis tabelas especificadas, validações de enum compatíveis com `VARCHAR`, colunas `JSONB`, chaves estrangeiras e índices analíticos.
+- Validar a execução do script em uma instância PostgreSQL descartável e registrar o resultado.
+
+---
+
+### ✅ O que foi Implementado
+
+- Criado `V1__init_reporting_schema.sql` em `backend-java/reporting-service/src/main/resources/db/migration`.
+- Definidas as tabelas `report_jobs`, `report_schedules`, `daily_stats`, `webhook_configs`, `webhook_delivery_logs` e `report_audit_logs` com tipos, campos, valores padrão e nulabilidade descritos no prompt.
+- Adicionadas constraints `CHECK` para os valores de `report_type`, `output_format` e `status`, além do formato `YYYY-MM-DD` de `stat_date` e limites não negativos para contadores/tentativas.
+- Adicionada a chave estrangeira `webhook_delivery_logs.webhook_config_id` para `webhook_configs(id)`, com `ON DELETE CASCADE`.
+- Criados os índices analíticos pedidos para estatísticas diárias, status/data/solicitante dos jobs, logs de entrega por job e auditoria por data.
+- Validado o DDL executando o arquivo completo em PostgreSQL 15.20 descartável: criação de 6 tabelas, 13 índices (incluindo os de PK) e 7 colunas `JSONB`.
+
+---
+
+### ❌ O que deu Erro
+
+- A instância PostgreSQL local não aceita conexão com o usuário padrão do workspace; a validação foi isolada em um container PostgreSQL 15.20 e concluída sem erros no script.
+
+---
+
+### 🟢 O que Funcionou
+
+- O arquivo SQL foi executado com `ON_ERROR_STOP=1`, sem erros de sintaxe ou execução.
+- As seis tabelas, os índices e as colunas JSONB foram confirmados por consultas aos catálogos do PostgreSQL.
+- O container descartável de validação foi removido após o teste.
+
+---
+
+### 📝 Resumo do Dia
+
+A migração inicial do schema do Reporting Service foi criada e validada em PostgreSQL 15.20. O DDL contempla as seis tabelas previstas, restrições de valores, defaults JSONB, FK com exclusão em cascata e os índices analíticos solicitados. A validação foi feita em banco efêmero porque a instância PostgreSQL local não permite a conexão com o usuário padrão; nenhuma base existente do projeto foi alterada.
 
 ---
 
