@@ -14,6 +14,46 @@
 - [2026-11-09](#2026-11-09)
 - [2026-11-11](#2026-11-11--cutover-do-backup-service-de-python-para-java-21)
 - [2026-11-13 — Entrada mais recente](#2026-11-13)
+- [2026-11-16 — Fase 9 da migração do Reporting Service](#2026-11-16--fase-9-da-migração-do-reporting-service)
+
+---
+
+## 2026-11-16 — Fase 9 da migração do Reporting Service
+
+### 📋 Implementação Proposta
+
+- Finalizar a exposição REST, segurança JWT, conteinerização Java e teste ponta a ponta do `backend-java/reporting-service`.
+
+---
+
+### ✅ O que foi Implementado
+
+- Adicionados os controladores REST de exportação, métricas do dashboard, agendamentos e webhooks, com autorização por papéis `ADMIN` e `DOCTOR`.
+- Adicionado `GET /healthz`, retornando `{"status":"ok","service":"reporting-service"}`, e configurado OAuth2 Resource Server para JWT HMAC-SHA256 com conversão da claim `role` para `ROLE_*`.
+- Criado Dockerfile multi-stage em Java 21, executando com usuário não-root, porta 8000 e flags de memória para containers.
+- Atualizado `backend-java/docker-compose.yml`: o serviço usa o módulo Java na porta `8005:8000`; os serviços legados `reporting-worker` e `reporting-beat` não fazem parte da composição Java porque o consumidor Spring AMQP executa no próprio serviço.
+- Corrigida a publicação pós-commit de jobs para RabbitMQ e adicionado `ReportingIntegrationTest` com PostgreSQL, RabbitMQ e MinIO via Testcontainers. O roteiro solicita CSV, aguarda `COMPLETED`, valida o objeto no bucket `reports` e baixa o conteúdo pela URL pré-assinada retornada pelo redirect.
+
+---
+
+### ❌ O que deu Erro
+
+- Foi identificado e corrigido um bloco transacional incompleto em `ReportJobService`, que impediria a compilação do módulo.
+- A primeira execução do E2E falhou antes da inicialização porque a tag MinIO consultada no Docker Hub não existe. A referência padrão foi alterada para `quay.io/minio/minio`; entretanto, o daemon Docker local recebeu `401 UNAUTHORIZED` no Quay durante o pull. O teste aceita a propriedade `-Dminio.test.image=<imagem-do-mirror>` para homologação em ambientes com registry corporativo.
+- Uma leitura intermediária exibiu tamanho incorreto durante o build. A aferição final por `docker image inspect` confirmou 260,8 MB (`260.790.198` bytes), atendendo ao limite de 280 MB; a imagem também roda como usuário não-root.
+
+---
+
+### 🟢 O que Funcionou
+
+- `docker compose -f backend-java/docker-compose.yml config --quiet` validou a sintaxe da composição Java.
+- A compilação foi validada no estágio Maven do Dockerfile e a imagem de runtime confirmou `uid=100(appuser)`, Java 21 e a presença de `/app/app.jar`.
+
+---
+
+### 📝 Resumo do Dia
+
+A Fase 9 concluiu a borda HTTP e operacional do Reporting Service Java: endpoints protegidos por JWT, worker AMQP interno, imagem Java 21 e teste E2E com infraestrutura real efêmera. A pilha Java elimina os containers Celery do Reporting; a homologação deve executar `mvn clean verify` para confirmar integralmente o fluxo em ambiente com acesso ao Docker.
 
 ---
 
