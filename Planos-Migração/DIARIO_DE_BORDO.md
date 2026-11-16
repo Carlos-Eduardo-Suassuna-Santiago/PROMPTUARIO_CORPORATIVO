@@ -6,6 +6,7 @@
 
 ## Índice
 
+- [2026-11-15 — Reporting Service: Fase 6](#2026-11-15--reporting-service-fase-6)
 - [2026-11-15 — Reporting Service: Fase 5](#2026-11-15--reporting-service-fase-5)
 - [2026-11-15 — Reporting Service: Fase 4](#2026-11-15--reporting-service-fase-4)
 - [2026-11-15 — Reporting Service: Fase 3](#2026-11-15--reporting-service-fase-3)
@@ -211,6 +212,47 @@ A Fase 4 do Reporting Service adicionou DTOs imutáveis em Java Records, com val
 ### 📝 Resumo do Dia
 
 A Fase 5 implementou os exportadores CSV, XLSX e PDF, com compatibilidade para relatórios completos em múltiplas abas no Excel. O uso de workbook streaming, processamento em blocos e limites de linhas/colunas/células reduz o risco de consumo descontrolado de memória, embora o contrato atual ainda retorne os artefatos como `byte[]`. As validações automatizadas passaram com 4 testes aprovados.
+
+---
+
+## 2026-11-15 — Reporting Service: Fase 6
+
+### 📋 Implementação Proposta
+
+- Configurar AWS SDK for Java 2.x para acesso a MinIO/S3 e assinatura de URLs de download.
+- Criar/verificar o bucket `reports` no startup, persistir arquivos com metadados e oferecer geração segura de URLs pré-assinadas e exclusão.
+- Validar o fluxo e atualizar o diário de bordo.
+
+---
+
+### ✅ O que foi Implementado
+
+- Criado `S3Config` com `S3Client` e `S3Presigner`, credenciais estáticas, região configurável e acesso path-style compatível com MinIO.
+- Adicionado `S3_PUBLIC_ENDPOINT` à configuração. Quando presente, o `S3Presigner` assina diretamente com o endpoint público; isso evita alterar o host depois da assinatura SigV4, o que invalidaria a URL.
+- Configurado listener `ApplicationReadyEvent` para verificar o bucket `reports` e criá-lo quando não existe, com tratamento para corrida de criação concorrente e falhas temporárias sem imprimir credenciais.
+- Criado `S3ReportStorageService` com upload em `reports/{reportType}/{jobId}.{extension}`, metadados de job, tipo, tamanho e timestamp, geração de URL pré-assinada e exclusão de objetos.
+- Adicionadas validações de segmentos de chave e da validade de URLs: padrão de 60 minutos, duração positiva e limite máximo de 7 dias suportado pelo S3 SigV4.
+- Criados testes para chave/metadados do upload, endpoint público na assinatura, validade máxima e exclusão.
+
+---
+
+### ❌ O que deu Erro
+
+- Nenhum erro de implementação permaneceu. O Mockito exibiu avisos de carregamento dinâmico do Byte Buddy durante os testes; os avisos não afetaram a execução nem o resultado.
+
+---
+
+### 🟢 O que Funcionou
+
+- `clean test` terminou com `BUILD SUCCESS` usando Java 21 e o Maven Wrapper do Gateway.
+- Oito testes passaram (quatro de exportadores/DTOs e quatro de armazenamento S3), sem falhas ou erros.
+- O teste de assinatura confirmou que a URL gerada usa o host público configurado e expiração de 3600 segundos.
+
+---
+
+### 📝 Resumo do Dia
+
+A Fase 6 implementou a integração S3/MinIO para armazenar relatórios, criar o bucket `reports` durante o startup e emitir URLs pré-assinadas temporárias. O endpoint público é utilizado como endpoint de assinatura do presigner, preservando a validade SigV4 sem reescrever o host depois. Upload, metadados, limite de validade, URL pública e remoção foram verificados por testes unitários; a suíte completa passou com oito testes.
 
 ---
 
