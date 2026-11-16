@@ -6,6 +6,7 @@
 
 ## Índice
 
+- [2026-11-15 — Reporting Service: Fase 5](#2026-11-15--reporting-service-fase-5)
 - [2026-11-15 — Reporting Service: Fase 4](#2026-11-15--reporting-service-fase-4)
 - [2026-11-15 — Reporting Service: Fase 3](#2026-11-15--reporting-service-fase-3)
 - [2026-11-15 — Reporting Service: Fase 1](#2026-11-15--reporting-service-fase-1)
@@ -166,6 +167,50 @@ A camada de persistência da Fase 3 foi implementada para o Reporting Service, i
 ### 📝 Resumo do Dia
 
 A Fase 4 do Reporting Service adicionou DTOs imutáveis em Java Records, com validações alinhadas às entradas do serviço e serialização snake_case compatível com o contrato FastAPI consumido pelo frontend. Também foi implementada a conversão de entidade de job para DTO e uma verificação automatizada de serialização. A compilação e o teste de contrato passaram.
+
+---
+
+## 2026-11-15 — Reporting Service: Fase 5
+
+### 📋 Implementação Proposta
+
+- Implementar os motores de exportação CSV, XLSX e PDF para o `reporting-service` usando OpenCSV, Apache POI e OpenPDF.
+- Garantir estilo corporativo, compatibilidade com relatórios `FULL_SYSTEM`, paginação e proteção contra consumo excessivo de memória.
+- Validar os formatos com testes automatizados e atualizar o diário de bordo.
+
+---
+
+### ✅ O que foi Implementado
+
+- Criada a interface `ReportExporter` com contrato comum para exportação binária, content type e extensão.
+- Criado `CsvReportExporter` usando OpenCSV, cabeçalho derivado das chaves do primeiro registro, escaping de campos e BOM UTF-8.
+- Criado `ExcelReportExporter` com `SXSSFWorkbook`, janela de 100 linhas, compressão de arquivos temporários, limpeza dos temporários, cabeçalho azul petróleo `#1A6E6E`, bordas, zebra striping, autoajuste de colunas e formatação de datas/números.
+- Para `FULL_SYSTEM`, o XLSX gera aba de resumo e abas específicas para as métricas disponíveis de consultas, pacientes, cancelamentos, prescrições e consultas por médico.
+- Criado `PdfReportExporter` com OpenPDF, papel A4 retrato ou paisagem conforme a quantidade de colunas, cabeçalho com título/data/solicitante, tabela com cabeçalho repetido e rodapé com número atual/total de páginas.
+- Adicionados limites defensivos comuns: no máximo 100.000 linhas, 200 colunas e 1.000.000 de células por exportação. As tabelas PDF são materializadas em blocos de até 500 linhas.
+- Criados testes de CSV (BOM, escaping e seleção de colunas), XLSX (abas FULL_SYSTEM e tipos de células) e PDF (validade e paginação).
+
+---
+
+### ❌ O que deu Erro
+
+- A primeira compilação indicou que o rastreamento de largura das colunas é específico de `SXSSFSheet`, não da interface `Sheet`; o tipo foi corrigido.
+- A primeira compilação de teste encontrou uma API de extração de texto que não existe no OpenPDF 1.3.39 usado pelo projeto. O teste foi ajustado para validar a estrutura e paginação através de `PdfReader`.
+- Uma limpeza de imports removeu por engano `Collections`, ainda necessário pelo helper de metadata; o import foi restaurado e a compilação/testes finais passaram.
+
+---
+
+### 🟢 O que Funcionou
+
+- `clean test` finalizado com `BUILD SUCCESS` usando Java 21 e o Maven Wrapper do Gateway.
+- Foram compiladas 31 fontes de produção e 2 fontes de teste; 4 testes passaram, sem falhas ou erros.
+- `git diff --check` concluiu sem apontar problemas de whitespace.
+
+---
+
+### 📝 Resumo do Dia
+
+A Fase 5 implementou os exportadores CSV, XLSX e PDF, com compatibilidade para relatórios completos em múltiplas abas no Excel. O uso de workbook streaming, processamento em blocos e limites de linhas/colunas/células reduz o risco de consumo descontrolado de memória, embora o contrato atual ainda retorne os artefatos como `byte[]`. As validações automatizadas passaram com 4 testes aprovados.
 
 ---
 
