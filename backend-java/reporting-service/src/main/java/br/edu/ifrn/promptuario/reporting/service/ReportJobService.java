@@ -8,11 +8,14 @@ import br.edu.ifrn.promptuario.reporting.model.ReportJob;
 import br.edu.ifrn.promptuario.reporting.model.ReportSchedule;
 import br.edu.ifrn.promptuario.reporting.repository.ReportAuditLogRepository;
 import br.edu.ifrn.promptuario.reporting.repository.ReportJobRepository;
+import br.edu.ifrn.promptuario.reporting.shared.exception.ResourceNotFoundException;
+import br.edu.ifrn.promptuario.reporting.storage.S3ReportStorageService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.Objects;
 
@@ -22,13 +25,16 @@ public class ReportJobService {
     private final ReportJobRepository reportJobRepository;
     private final ReportAuditLogRepository reportAuditLogRepository;
     private final ReportJobPublisher reportJobPublisher;
+    private final S3ReportStorageService s3ReportStorageService;
 
     public ReportJobService(ReportJobRepository reportJobRepository,
                             ReportAuditLogRepository reportAuditLogRepository,
-                            ReportJobPublisher reportJobPublisher) {
+                            ReportJobPublisher reportJobPublisher,
+                            S3ReportStorageService s3ReportStorageService) {
         this.reportJobRepository = reportJobRepository;
         this.reportAuditLogRepository = reportAuditLogRepository;
         this.reportJobPublisher = reportJobPublisher;
+        this.s3ReportStorageService = s3ReportStorageService;
     }
 
     @Transactional
@@ -76,5 +82,30 @@ public class ReportJobService {
             }
         });
         return ReportJobResponseDTO.fromEntity(savedJob, null);
+    }
+
+    @Transactional(readOnly = true)
+    public ReportJobResponseDTO getJob(String jobId) {
+        ReportJob job = reportJobRepository.findById(jobId)
+                .orElseThrow(() -> new ResourceNotFoundException("Relatório não encontrado: " + jobId));
+        String downloadUrl = null;
+        if (job.getStatus().name().equals("COMPLETED") && job.getS3Key() != null && !job.getS3Key().isBlank()) {
+            try {
+                downloadUrl = s3ReportStorageService.generatePresignedDownloadUrl(job.getS3Key(), Duration.ofMinutes(60));
+            } catch (RuntimeException exception) {
+                downloadUrl = null;
+            }
+        }
+        return ReportJobResponseDTO.fromEntity(job, downloadUrl);
+    }
+
+    @Transactional(readOnly = true)
+    public String getDownloadUrl(String jobId) {
+        ReportJob job = reportJobRepository.findById(jobId)
+                .orElseThrow(() -> new ResourceNotFoundException("Relatório não encontrado: " + jobId));
+        if (job.getS3Key() == null || job.getS3Key().isBlank()) {
+            throw new ResourceNotFoundException("Arquivo do relatório não disponível");
+        }
+        return s3ReportStorageService.generatePresignedDownloadUrl(job.getS3Key(), Duration.ofMinutes(60));
     }
 }

@@ -214,77 +214,33 @@ services:
 
   reporting-service:
     build:
-      context: .
-      dockerfile: reporting-service/Dockerfile
+      context: ../backend-java/reporting-service
+      dockerfile: Dockerfile
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql+asyncpg://reporting:${DB_REPORTING_PASSWORD:-reporting_pass}@db-reporting:5432/reporting_db
-      CELERY_BROKER_URL: redis://redis:6379/1
-      CELERY_RESULT_BACKEND: redis://redis:6379/1
-      RABBITMQ_URL: amqp://promptuario:${RABBITMQ_PASSWORD:-promptuario_pass}@rabbitmq:5672/
+      DB_REPORTING_HOST: db-reporting
+      DB_REPORTING_USER: reporting
+      DB_REPORTING_PASS: ${DB_REPORTING_PASSWORD:-reporting_pass}
+      RABBITMQ_HOST: rabbitmq
       S3_ENDPOINT: http://minio:9000
       S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
       S3_ACCESS_KEY: promptuario
       S3_SECRET_KEY: promptuario_pass
       S3_BUCKET_REPORTS: reports
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-super-secret-change-in-production-32chars}
+      SERVER_PORT: 8000
       SERVICE_NAME: reporting-service
       LOG_LEVEL: INFO
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-super-secret-change-in-production-32chars}
-      JWT_ALGORITHM: HS256
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
-      IAM_DB_URL: postgresql://iam:iam_pass@db-iam:5432/iam_db
-      PATIENT_DB_URL: postgresql://clinical:clinical_pass@db-patient-clinical:5432/patient_clinical_db
-      CLINICAL_DB_URL: postgresql://clinical:clinical_pass@db-patient-clinical:5432/patient_clinical_db
     depends_on:
       db-reporting:
         condition: service_healthy
-      redis:
-        condition: service_healthy
       rabbitmq:
         condition: service_healthy
-    networks: [ backend ]
-
-  reporting-worker:
-    build:
-      context: .
-      dockerfile: reporting-service/Dockerfile.worker
-    restart: unless-stopped
-    environment:
-      DATABASE_URL: postgresql+asyncpg://reporting:${DB_REPORTING_PASSWORD:-reporting_pass}@db-reporting:5432/reporting_db
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-super-secret-change-in-production-32chars}
-      JWT_ALGORITHM: HS256
-      CELERY_BROKER_URL: redis://redis:6379/1
-      CELERY_RESULT_BACKEND: redis://redis:6379/1
-      RABBITMQ_URL: amqp://promptuario:${RABBITMQ_PASSWORD:-promptuario_pass}@rabbitmq:5672/
-      S3_ENDPOINT: http://minio:9000
-      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
-      S3_ACCESS_KEY: promptuario
-      S3_SECRET_KEY: promptuario_pass
-      S3_BUCKET_REPORTS: reports
-      WEBHOOK_SIGNING_SECRET: reporting-webhook-secret-change-me
-    depends_on:
-      - reporting-service
-      - db-reporting
-      - redis
-    networks: [ backend ]
-
-  reporting-beat:
-    build:
-      context: .
-      dockerfile: reporting-service/Dockerfile.worker
-    restart: unless-stopped
-    environment:
-      DATABASE_URL: postgresql+asyncpg://reporting:${DB_REPORTING_PASSWORD:-reporting_pass}@db-reporting:5432/reporting_db
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-super-secret-change-in-production-32chars}
-      JWT_ALGORITHM: HS256
-      CELERY_BROKER_URL: redis://redis:6379/1
-      CELERY_RESULT_BACKEND: redis://redis:6379/1
-      CELERY_BEAT_SCHEDULE_FILENAME: /tmp/celerybeat-schedule
-    command: [ "celery", "-A", "app.workers.celery_tasks.celery_app", "beat", "--loglevel=info", "--schedule=/tmp/celerybeat-schedule" ]
-    depends_on:
-      - reporting-service
-      - db-reporting
-      - redis
+      minio:
+        condition: service_healthy
+    ports:
+      - "8005:8000"
     networks: [ backend ]
 
   # Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ API GATEWAY Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬

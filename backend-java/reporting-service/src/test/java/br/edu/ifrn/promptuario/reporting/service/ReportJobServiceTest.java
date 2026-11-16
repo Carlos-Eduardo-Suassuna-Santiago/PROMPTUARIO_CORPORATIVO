@@ -9,6 +9,7 @@ import br.edu.ifrn.promptuario.reporting.model.enums.OutputFormat;
 import br.edu.ifrn.promptuario.reporting.model.enums.ReportType;
 import br.edu.ifrn.promptuario.reporting.repository.ReportAuditLogRepository;
 import br.edu.ifrn.promptuario.reporting.repository.ReportJobRepository;
+import br.edu.ifrn.promptuario.reporting.storage.S3ReportStorageService;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -31,6 +32,7 @@ class ReportJobServiceTest {
         ReportJobRepository jobs = mock(ReportJobRepository.class);
         ReportAuditLogRepository audits = mock(ReportAuditLogRepository.class);
         ReportJobPublisher publisher = mock(ReportJobPublisher.class);
+        S3ReportStorageService storage = mock(S3ReportStorageService.class);
         when(jobs.saveAndFlush(any(ReportJob.class))).thenAnswer(invocation -> {
             ReportJob job = invocation.getArgument(0);
             job.setId("job-42");
@@ -39,7 +41,7 @@ class ReportJobServiceTest {
         });
         when(audits.save(any(ReportAuditLog.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        ReportJobService service = new ReportJobService(jobs, audits, publisher);
+        ReportJobService service = new ReportJobService(jobs, audits, publisher, storage);
         TransactionSynchronizationManager.initSynchronization();
         try {
             ReportJobResponseDTO response = service.createExportJob(
