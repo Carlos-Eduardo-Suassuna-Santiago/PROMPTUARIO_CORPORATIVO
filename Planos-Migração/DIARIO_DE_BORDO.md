@@ -6,6 +6,7 @@
 
 ## Índice
 
+- [2026-11-15 — Reporting Service: Fase 7](#2026-11-15--reporting-service-fase-7)
 - [2026-11-15 — Reporting Service: Fase 6](#2026-11-15--reporting-service-fase-6)
 - [2026-11-15 — Reporting Service: Fase 5](#2026-11-15--reporting-service-fase-5)
 - [2026-11-15 — Reporting Service: Fase 4](#2026-11-15--reporting-service-fase-4)
@@ -253,6 +254,54 @@ A Fase 5 implementou os exportadores CSV, XLSX e PDF, com compatibilidade para r
 ### 📝 Resumo do Dia
 
 A Fase 6 implementou a integração S3/MinIO para armazenar relatórios, criar o bucket `reports` durante o startup e emitir URLs pré-assinadas temporárias. O endpoint público é utilizado como endpoint de assinatura do presigner, preservando a validade SigV4 sem reescrever o host depois. Upload, metadados, limite de validade, URL pública e remoção foram verificados por testes unitários; a suíte completa passou com oito testes.
+
+---
+
+## 2026-11-15 — Reporting Service: Fase 7
+
+### 📋 Implementação Proposta
+
+- Implementar criação transacional de jobs, publicação assíncrona RabbitMQ, worker de relatórios, agendamentos Cron e notificações webhook assinadas.
+- Garantir ciclo de estado do job, deduplicação de mensagens/schedules, retry limitado, timeout HTTP e ausência de espera nos fluxos principais.
+- Validar com testes automatizados e atualizar o diário de bordo.
+
+---
+
+### ✅ O que foi Implementado
+
+- Criado `ReportJobService`: grava `ReportJob` e `ReportAuditLog` na mesma transação e publica o `jobId` somente após commit.
+- Criado `ReportJobPublisher` com publicação assíncrona na fila durável `reporting.job.queue`, até três tentativas com backoff curto e transição para `FAILED` quando o envio não é concluído.
+- Criado `ReportExecutionWorker` com listener RabbitMQ, claim atômico de `PENDING` para `RUNNING`, processamento de consultas, pacientes, médicos, prescrições, `FULL_SYSTEM` e `CUSTOM`, exportação JSON/CSV/XLSX/PDF e upload MinIO.
+- O worker grava `COMPLETED`, `s3Key`, quantidade de linhas e término; em exceções registra `FAILED`, mensagem de erro e término. Mensagens duplicadas/não pendentes são reconhecidas sem reprocessar.
+- Falhas ao agendar uma notificação webhook são isoladas do ciclo do relatório já persistido; o documento permanece `COMPLETED` se o artefato foi gerado e armazenado com sucesso.
+- Criado `ReportSchedulerService` com verificação a cada 60 segundos, suporte a Cron Spring de 5 e 6 campos, persistência de `nextRunAt`, atualização de `lastRunAt` e claim atômico para evitar dispatch duplicado da mesma agenda/minuto.
+- Criado `WebhookDeliveryService` assíncrono: payload com URL de download, HMAC-SHA256 no header `X-Signature`, `RestClient` com timeout de conexão e leitura de 5 segundos, registro de cada tentativa e retry atrasado/capado sem `sleep` na thread principal.
+- Os retries de webhook respeitam a configuração de cada destino, com limites defensivos de 10 retries e intervalo de até 1 hora; respostas são limitadas a 4 KB nos logs.
+- Adicionado `JsonReportExporter`, necessário para que o worker processe o formato JSON previsto no enum e no contrato da fase.
+- Criados testes de criação/auditoria/dispatch após commit, conclusão/falha/idempotência do worker, cron, assinatura HMAC, exporters e S3.
+
+---
+
+### ❌ O que deu Erro
+
+- A primeira compilação dos testes falhou por falta de import de `ReportExporter` no teste de falha do worker; o import foi adicionado e a suíte foi executada novamente com sucesso.
+- Os testes exibem aviso do Java/Byte Buddy sobre carregamento dinâmico de agente usado pelo Mockito; não interfere no resultado.
+- A suíte não iniciou RabbitMQ, PostgreSQL, MinIO nem endpoints webhook reais; essas integrações permanecem para validação de infraestrutura.
+
+---
+
+### 🟢 O que Funcionou
+
+- `clean test` concluiu com `BUILD SUCCESS` usando Java 21 e o Maven Wrapper do Gateway.
+- Foram compiladas 40 fontes Java de produção e 7 fontes de teste; 15 testes passaram, sem falhas ou erros.
+- Testes confirmaram job `PENDING` persistido antes do callback de commit, transição do worker para `COMPLETED` e `FAILED`, ausência de reprocessamento duplicado, preservação de `COMPLETED` após falha ao agendar webhook, cron de cinco campos, assinatura HMAC e comportamento dos exporters/storage.
+- `git diff --check` concluiu sem apontar problemas de whitespace.
+
+---
+
+### 📝 Resumo do Dia
+
+A Fase 7 implementou a orquestração do Reporting Service: jobs são auditados e publicados após commit; workers processam e armazenam exportações com transições de estado idempotentes; schedules usam Cron Spring e claim atômico; webhooks são assinados e enviados em executor assíncrono com timeout e retries atrasados. JSON foi incluído como formato de exportação. A suíte passou com 15 testes; ainda não foi executada integração real com broker, banco, MinIO ou endpoint webhook.
 
 ---
 
