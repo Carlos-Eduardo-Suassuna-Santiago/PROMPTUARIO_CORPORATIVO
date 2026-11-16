@@ -15,6 +15,21 @@ public interface DailyStatsRepository extends JpaRepository<DailyStats, String> 
 
     Optional<DailyStats> findByStatDateAndStatTypeAndEntityIdIsNull(String statDate, String statType);
 
+    List<DailyStats> findByStatTypeAndStatDateBetweenOrderByStatDateDesc(
+            String statType, String fromDate, String toDate);
+
+    List<DailyStats> findTop100001ByStatTypeAndStatDateBetweenOrderByStatDateDesc(
+            String statType, String fromDate, String toDate);
+
+    List<DailyStats> findByStatTypeAndStatDateBetweenAndEntityIdOrderByStatDateDesc(
+            String statType, String fromDate, String toDate, String entityId);
+
+    List<DailyStats> findByStatDateBetweenOrderByStatDateDescStatTypeAscEntityIdAsc(
+            String fromDate, String toDate);
+
+    List<DailyStats> findTop100001ByStatDateBetweenOrderByStatDateDescStatTypeAscEntityIdAsc(
+            String fromDate, String toDate);
+
     @Query("""
             SELECT d.statDate AS statDate,
                    d.statType AS statType,
