@@ -21,6 +21,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -33,28 +34,40 @@ public class UserService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final IamEventPublisher eventPublisher;
+    private final IamAuditService auditService;
 
+    @Autowired
     public UserService(
             UserRepository userRepository,
             RefreshTokenRepository refreshTokenRepository,
             PasswordEncoder passwordEncoder,
-            IamEventPublisher eventPublisher
+            IamEventPublisher eventPublisher,
+            IamAuditService auditService
     ) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
         this.eventPublisher = eventPublisher;
+        this.auditService = auditService;
+    }
+
+    /** Backward-compatible constructor used by unit tests and simple embedders. */
+    public UserService(UserRepository userRepository, RefreshTokenRepository refreshTokenRepository,
+                       PasswordEncoder passwordEncoder, IamEventPublisher eventPublisher) {
+        this(userRepository, refreshTokenRepository, passwordEncoder, eventPublisher, null);
     }
 
     @Transactional
     public UserResponseDTO createUser(UserCreateDTO dto) {
         User user = createUser(dto.email(), dto.password(), dto.fullName(), dto.role(), dto.cpf());
+        recordAudit("users", "INSERT", user, null, java.util.Map.of("email", user.getEmail(), "role", user.getRole().name()));
         return UserResponseDTO.fromEntity(user);
     }
 
     @Transactional
     public UserResponseDTO registerPatient(PatientRegisterDTO dto) {
         User user = createUser(dto.email(), dto.password(), dto.fullName(), Role.PATIENT, dto.cpf());
+        recordAudit("users", "INSERT", user, null, java.util.Map.of("email", user.getEmail(), "role", "PATIENT"));
         return UserResponseDTO.fromEntity(user);
     }
 
@@ -72,6 +85,7 @@ public class UserService {
         user.setDeactivationReason(reason);
         refreshTokenRepository.revokeAllByUserId(userId);
         eventPublisher.publishUserDeactivated(new UserDeactivatedEvent(userId, reason, adminId, deactivatedAt));
+        recordAudit("users", "DEACTIVATE", user, null, java.util.Map.of("reason", reason));
     }
 
     @Transactional(readOnly = true)
@@ -124,6 +138,7 @@ public class UserService {
         if (dto.fullName() != null && !dto.fullName().isBlank()) {
             user.setFullName(dto.fullName().trim());
         }
+        recordAudit("users", "UPDATE", user, null, java.util.Map.of("email", user.getEmail(), "fullName", user.getFullName()));
         return UserResponseDTO.fromEntity(user);
     }
 
@@ -131,6 +146,7 @@ public class UserService {
     public UserResponseDTO assignRole(String id, Role role) {
         User user = getUser(id);
         user.setRole(role);
+        recordAudit("users", "ROLE_CHANGE", user, null, java.util.Map.of("role", role.name()));
         return UserResponseDTO.fromEntity(user);
     }
 
@@ -140,6 +156,7 @@ public class UserService {
         user.setActive(true);
         user.setDeactivatedAt(null);
         user.setDeactivationReason(null);
+        recordAudit("users", "REACTIVATE", user, null, java.util.Map.of("active", true));
     }
 
     @Transactional(readOnly = true)
@@ -181,5 +198,11 @@ public class UserService {
 
     private String normalizeCpf(String cpf) {
         return cpf == null || cpf.isBlank() ? null : cpf.trim();
+    }
+
+    private void recordAudit(String table, String operation, User target,
+                             java.util.Map<String, Object> oldValues,
+                             java.util.Map<String, Object> newValues) {
+        if (auditService != null) auditService.record(table, operation, target, oldValues, newValues);
     }
 }
