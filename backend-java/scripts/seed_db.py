@@ -580,7 +580,8 @@ def main():
             target_status = random.choices(["SCHEDULED", "CONFIRMED", "CANCELLED"], weights=[40, 50, 10])[0]
 
         agendamentos_massa.append({
-            "patient_id": pac_escolhido["user_id"],
+            # Appointments reference the Patient aggregate ID, not the IAM user ID.
+            "patient_id": pac_escolhido["patient_id"],
             "doctor_id": med_escolhido["id"],
             "scheduled_at": dt_str,
             "appointment_type": tipo,

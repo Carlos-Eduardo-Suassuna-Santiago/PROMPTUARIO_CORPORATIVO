@@ -368,7 +368,7 @@ make test-ai
 make test-patient-clinical
 
 # Com coverage
-cd iam-service && pytest tests/ --cov=app --cov-report=html
+.\tests\run-unit-tests.ps1 -Suite python -Coverage
 ```
 
 **PowerShell:**
@@ -385,9 +385,7 @@ Get-ChildItem -Filter "tests" -Recurse -Directory | ForEach-Object {
 }
 
 # Serviço específico
-Set-Location iam-service
-pytest tests/ --cov=app --cov-report=html
-Set-Location ..
+.\tests\run-unit-tests.ps1 -Suite python
 ```
 
 ## Desenvolvimento local
