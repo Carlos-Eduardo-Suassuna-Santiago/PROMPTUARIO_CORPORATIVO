@@ -147,8 +147,12 @@ class AIService:
             "error_message": None,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "completed_at": None,
-            "source_event_id": source_event_id,
         }
+        # Do not persist a null field: MongoDB sparse unique indexes still
+        # index explicit null values, so multiple manual requests would
+        # otherwise collide on source_event_id_1.
+        if source_event_id:
+            job["source_event_id"] = source_event_id
         try:
             await self.db.analysis_jobs.insert_one(job)
         except DuplicateKeyError:

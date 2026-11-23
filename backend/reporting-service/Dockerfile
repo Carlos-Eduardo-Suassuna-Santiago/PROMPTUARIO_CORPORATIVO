@@ -11,7 +11,6 @@ COPY reporting-service/requirements.txt .
 RUN pip install --default-timeout=120 --no-cache-dir -r requirements.txt
 
 COPY shared /app/shared
-COPY scripts /app/scripts
 COPY reporting-service/app ./app
 
 EXPOSE 8000
@@ -19,4 +18,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 \
   CMD curl -f http://localhost:8000/healthz || exit 1
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

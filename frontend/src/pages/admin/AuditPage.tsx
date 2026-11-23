@@ -19,6 +19,32 @@ const OPERATION_LABELS: Record<string, string> = {
   PASSWORD_CHANGE: 'Troca de Senha',
 }
 
+/** Converts technical table/endpoint names into labels suitable for the dashboard. */
+function tableLabel(table: string): string {
+  const value = table.toLowerCase()
+  if (value === 'users' || value.includes('/users')) {
+    if (value.includes('/doctors')) return 'Médicos'
+    if (value.includes('/me')) return 'Meu usuário'
+    return 'Usuários'
+  }
+  if (value === 'patients' || value.includes('/patients')) {
+    if (value.includes('/me')) return 'Meu cadastro de paciente'
+    if (value.includes('/allergies')) return 'Alergias de pacientes'
+    if (value.includes('/vaccines')) return 'Vacinas de pacientes'
+    if (value.includes('/medications')) return 'Medicações de pacientes'
+    if (value.includes('/documents')) return 'Documentos de pacientes'
+    return 'Pacientes'
+  }
+  if (value === 'appointments' || value.includes('/appointments')) return 'Consultas'
+  if (value === 'records' || value.includes('/records')) return 'Prontuários'
+  if (value.includes('/prescriptions')) return 'Receitas'
+  if (value.includes('/exams')) return 'Exames'
+  if (value.includes('/certificates')) return 'Atestados'
+  if (value.includes('/schedules')) return 'Grades de horários'
+  if (value === 'audit_logs' || value.includes('/audit')) return 'Auditoria'
+  return table.replace(/^\/api\/v1\//, '').replace(/_/g, ' ')
+}
+
 const OPERATION_COLORS: Record<string, string> = {
   INSERT: 'bg-emerald-500/15 text-emerald-300 ring-emerald-600/30',
   UPDATE: 'bg-amber-500/15 text-amber-300 ring-amber-600/30',
@@ -34,6 +60,12 @@ const SERVICE_LABELS: Record<string, string> = {
   'clinical-service': 'Clínico',
 }
 
+// O agregador retorna os nomes canônicos dos bancos (clinical/iam),
+// enquanto os filtros legados usam os nomes dos microsserviços.
+SERVICE_LABELS['clinical'] = 'Clinico'
+SERVICE_LABELS['patient-clinical-service'] = 'Clinico'
+SERVICE_LABELS['iam'] = 'IAM'
+
 const SEVERITY_COLORS: Record<string, string> = {
   LOW: 'bg-slate-500/15 text-slate-300',
   MEDIUM: 'bg-amber-500/15 text-amber-300',
@@ -43,13 +75,15 @@ const SEVERITY_COLORS: Record<string, string> = {
 
 // ─── Summary Tab ────────────────────────────────────────────────────────────
 function SummaryTab() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ['audit', 'summary'],
     queryFn: () => auditApi.summary(),
     refetchInterval: 60_000,
   })
 
   if (isLoading) return <PageLoader />
+
+  if (isError) return <Alert variant="error">{getErrorMessage(error)}</Alert>
 
   if (!data) return <Alert variant="error">Erro ao carregar resumo.</Alert>
 
@@ -151,7 +185,7 @@ function SummaryTab() {
               .map(([tbl, count]) => (
                 <div key={tbl} className="flex items-center gap-4">
                   <Badge className="w-32 text-center bg-slate-700/40 text-slate-300">
-                    {tbl}
+                    {tableLabel(tbl)}
                   </Badge>
                   <div className="flex-1 h-3 bg-slate-800 rounded-full overflow-hidden">
                     <div
@@ -171,13 +205,15 @@ function SummaryTab() {
 
 // ─── Suspicious Tab ─────────────────────────────────────────────────────────
 function SuspiciousTab() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ['audit', 'suspicious'],
     queryFn: () => auditApi.suspicious(),
     refetchInterval: 30_000,
   })
 
   if (isLoading) return <PageLoader />
+
+  if (isError) return <Alert variant="error">{getErrorMessage(error)}</Alert>
 
   if (!data) return <Alert variant="error">Erro ao carregar atividades suspeitas.</Alert>
 
@@ -242,7 +278,7 @@ function LogsTab() {
   const [operationFilter, setOperationFilter] = useState('')
   const [tableFilter, setTableFilter] = useState('')
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ['audit', 'logs', { page, service: serviceFilter, operation: operationFilter, table: tableFilter }],
     queryFn: () => auditApi.logs({
       page,
@@ -305,6 +341,8 @@ function LogsTab() {
 
       {isLoading ? (
         <PageLoader />
+      ) : isError ? (
+        <Alert variant="error">{getErrorMessage(error)}</Alert>
       ) : !data?.items.length ? (
         <EmptyState
           icon={<Search className="w-8 h-8" />}
@@ -349,7 +387,7 @@ function LogsTab() {
                     </Td>
                     <Td>
                       <Badge className="bg-slate-700/40 text-slate-300">
-                        {log.table_name}
+                        {tableLabel(log.table_name)}
                       </Badge>
                     </Td>
                     <Td>

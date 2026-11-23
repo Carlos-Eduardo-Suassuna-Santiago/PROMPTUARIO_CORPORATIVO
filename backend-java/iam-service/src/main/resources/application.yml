@@ -4,6 +4,8 @@ server:
 spring:
   application:
     name: iam-service
+  jackson:
+    property-naming-strategy: SNAKE_CASE
   profiles:
     default: dev
   datasource:

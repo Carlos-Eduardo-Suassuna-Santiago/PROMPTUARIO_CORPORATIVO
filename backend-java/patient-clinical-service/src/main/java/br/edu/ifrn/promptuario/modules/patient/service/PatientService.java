@@ -59,6 +59,18 @@ public class PatientService {
         return repository.findByUserId(userId).orElseThrow(() -> new ResourceNotFoundException("Paciente não encontrado"));
     }
 
+    /** Creates the minimal patient profile when an IAM user exists but its event was missed. */
+    @Transactional
+    public Patient getOrCreatePatient(String userId, String fullName, String email) {
+        return repository.findByUserId(userId).orElseGet(() -> {
+            Patient patient = new Patient();
+            patient.setUserId(userId);
+            patient.setFullName(fullName == null || fullName.isBlank() ? "Paciente" : fullName);
+            patient.setEmail(email);
+            return repository.save(patient);
+        });
+    }
+
     @Transactional(readOnly = true)
     public PatientListResponseDto listPatients(int page, int size, String search) {
         Pageable pageable = PageRequest.of(Math.max(page, 0), Math.max(size, 1));

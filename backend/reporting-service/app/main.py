@@ -11,7 +11,6 @@ import boto3
 from botocore.exceptions import ClientError
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy import func, select, text
@@ -789,17 +788,47 @@ async def doctors_report(
     dependencies=[Depends(require_roles("ADMIN"))],
 )
 async def dashboard_summary(request: Request):
+    """Return live dashboard counters from the clinical database.
+
+    DailyStats is populated asynchronously from RabbitMQ and can be empty
+    after a fresh deployment. The dashboard must still reflect the source of
+    truth immediately, so use the clinical tables and keep DailyStats as a
+    fallback for older installations.
+    """
     async with _sf(request)() as session:
         today = datetime.now(timezone.utc).date().isoformat()
-        consultations_today = await session.scalar(
-            select(func.sum(DailyStats.value)).where(DailyStats.stat_type == "CONSULTATIONS", DailyStats.stat_date == today)
-        ) or 0
-        new_patients_month = await session.scalar(
-            select(func.sum(DailyStats.value)).where(DailyStats.stat_type == "NEW_PATIENTS", DailyStats.stat_date >= today[:7] + "-01")
-        ) or 0
-        cancellations_today = await session.scalar(
-            select(func.sum(DailyStats.value)).where(DailyStats.stat_type == "CANCELLATIONS", DailyStats.stat_date == today)
-        ) or 0
+        consultations_today = new_patients_month = cancellations_today = 0
+        try:
+            conn = await asyncpg.connect(settings.CLINICAL_DB_URL)
+            try:
+                consultations_today = await conn.fetchval(
+                    """SELECT COUNT(*) FROM appointments
+                       WHERE scheduled_at >= $1::date
+                         AND scheduled_at < ($1::date + INTERVAL '1 day')
+                         AND status <> 'CANCELLED'""", today
+                ) or 0
+                new_patients_month = await conn.fetchval(
+                    """SELECT COUNT(*) FROM patients
+                       WHERE created_at >= date_trunc('month', $1::date)""", today
+                ) or 0
+                cancellations_today = await conn.fetchval(
+                    """SELECT COUNT(*) FROM appointments
+                       WHERE cancelled_at >= $1::date
+                         AND cancelled_at < ($1::date + INTERVAL '1 day')""", today
+                ) or 0
+            finally:
+                await conn.close()
+        except Exception as exc:
+            logger.warning("Live dashboard counters unavailable; using daily_stats: %s", exc)
+            consultations_today = await session.scalar(
+                select(func.sum(DailyStats.value)).where(DailyStats.stat_type == "CONSULTATIONS", DailyStats.stat_date == today)
+            ) or 0
+            new_patients_month = await session.scalar(
+                select(func.sum(DailyStats.value)).where(DailyStats.stat_type == "NEW_PATIENTS", DailyStats.stat_date >= today[:7] + "-01")
+            ) or 0
+            cancellations_today = await session.scalar(
+                select(func.sum(DailyStats.value)).where(DailyStats.stat_type == "CANCELLATIONS", DailyStats.stat_date == today)
+            ) or 0
         return {"consultations_today": consultations_today, "new_patients_this_month": new_patients_month, "cancellations_today": cancellations_today, "as_of": datetime.now(timezone.utc).isoformat()}
 
 
@@ -822,8 +851,10 @@ def _normalize_audit_service(service: Optional[str]) -> Optional[str]:
     aliases = {
         "iam-service": "iam",
         "patient-service": "clinical",
+        "patient-clinical-service": "clinical",
         "patient": "clinical",
         "clinical-service": "clinical",
+        "clinical": "clinical",
     }
     return aliases.get(service, service) if service else None
 
@@ -1272,14 +1303,6 @@ app = FastAPI(
     title="PROMPTUARIO — Reporting Service",
     description="Relatórios, exportações assíncronas, agendamento, webhooks e auditoria",
     version="2.0.0",
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
 )
 
 setup_observability(app, settings.SERVICE_NAME, settings.LOG_LEVEL)

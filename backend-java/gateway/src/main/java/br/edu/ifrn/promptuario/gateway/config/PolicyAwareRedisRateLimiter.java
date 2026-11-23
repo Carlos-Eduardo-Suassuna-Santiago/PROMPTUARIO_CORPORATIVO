@@ -49,12 +49,12 @@ public class PolicyAwareRedisRateLimiter implements RateLimiter<RedisRateLimiter
 
     private RateLimitPolicy policyFor(String key) {
         if (key.startsWith(API_KEY_PREFIX)) {
-            return new RateLimitPolicy("api-key", apiKeyRateLimiter, 120, 60);
+            return new RateLimitPolicy("api-key", apiKeyRateLimiter, 120, 1);
         }
         if (key.startsWith(USER_PREFIX)) {
-            return new RateLimitPolicy("authenticated-user", authRateLimiter, 300, 60);
+            return new RateLimitPolicy("authenticated-user", authRateLimiter, 300, 1);
         }
-        return new RateLimitPolicy("anonymous-ip", anonRateLimiter, 30, 60);
+        return new RateLimitPolicy("anonymous-ip", anonRateLimiter, 30, 1);
     }
 
     private Response addRetryAfter(Response response, RateLimitPolicy policy) {

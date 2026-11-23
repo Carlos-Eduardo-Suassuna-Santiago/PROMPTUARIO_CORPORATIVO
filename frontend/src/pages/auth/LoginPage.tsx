@@ -133,6 +133,7 @@ export function LoginPage() {
             <Input
               label="Email"
               type="email"
+              autoComplete="username"
               placeholder="seu@email.com"
               icon={<Mail className="w-4 h-4" />}
               error={errors.email?.message}
@@ -142,6 +143,7 @@ export function LoginPage() {
             <Input
               label="Senha"
               type={showPassword ? 'text' : 'password'}
+              autoComplete="current-password"
               placeholder="••••••••"
               icon={<Lock className="w-4 h-4" />}
               error={errors.password?.message}

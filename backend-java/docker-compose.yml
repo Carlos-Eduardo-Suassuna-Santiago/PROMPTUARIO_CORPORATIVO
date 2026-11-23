@@ -133,6 +133,11 @@ services:
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_USERNAME: promptuario
       SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-promptuario_pass}
+      # Map the repository .env names to the Spring @ConfigurationProperties names.
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_CLIENT_ID:-not-configured}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-not-configured}
+      GOOGLE_OAUTH_REDIRECT_URI: ${OAUTH_REDIRECT_BASE_URL:-http://localhost:8000}/api/v1/auth/oauth/google/callback
+      FRONTEND_CALLBACK_URL: ${FRONTEND_CALLBACK_URL:-http://localhost:3000/auth/callback}
       APP_SECURITY_JWT_SECRET_KEY: ${JWT_SECRET_KEY:-super-secret-change-in-production-32chars}
     depends_on:
       db-iam:
@@ -156,6 +161,8 @@ services:
       SPRING_DATASOURCE_USERNAME: clinical
       SPRING_DATASOURCE_PASSWORD: ${DB_CLINICAL_PASSWORD:-clinical_pass}
       SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_USERNAME: promptuario
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-promptuario_pass}
       APP_STORAGE_S3_ENDPOINT: http://minio:9000
       APP_STORAGE_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       APP_STORAGE_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
@@ -214,7 +221,7 @@ services:
 
   reporting-service:
     build:
-      context: .
+      context: ../backend
       dockerfile: reporting-service/Dockerfile
     restart: unless-stopped
     environment:
@@ -246,7 +253,7 @@ services:
 
   reporting-worker:
     build:
-      context: .
+      context: ../backend
       dockerfile: reporting-service/Dockerfile.worker
     restart: unless-stopped
     environment:
@@ -270,7 +277,7 @@ services:
 
   reporting-beat:
     build:
-      context: .
+      context: ../backend
       dockerfile: reporting-service/Dockerfile.worker
     restart: unless-stopped
     environment:
@@ -306,7 +313,9 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-super-secret-change-in-production-32chars}
-      FRONTEND_URL: "${FRONTEND_URL:-*}"
+      # CORS cannot use wildcard origin together with credentials.
+      # Keep the local Vite and Docker frontend origins explicit by default.
+      FRONTEND_URL: "${FRONTEND_URL:-http://localhost:3000,http://localhost,http://127.0.0.1:3000,http://127.0.0.1}"
       SPRING_PROFILES_ACTIVE: prod
     depends_on:
       redis:

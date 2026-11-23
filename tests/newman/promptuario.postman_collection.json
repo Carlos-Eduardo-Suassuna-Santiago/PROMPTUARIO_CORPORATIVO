@@ -1,0 +1,227 @@
+{
+  "info": {
+    "name": "Promptuário - Smoke Tests",
+    "description": "Smoke/integration checks for the local Promptuário Docker stack. Override credentials with -e when needed.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8000" }
+  ],
+  "item": [
+    {
+      "name": "01 - Gateway health",
+      "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/healthz" },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('Gateway responde 200', function () { pm.response.to.have.status(200); });",
+        "pm.test('Status operacional', function () { pm.expect(pm.response.json().status).to.eql('ok'); });"
+      ] } }]
+    },
+    {
+      "name": "02 - Login",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}" },
+        "url": "{{baseUrl}}/api/v1/auth/login"
+      },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('Login responde 200', function () { pm.response.to.have.status(200); });",
+        "if (pm.response.code === 200) {",
+        "  const body = pm.response.json();",
+        "  pm.expect(body.access_token, 'access_token').to.be.a('string').and.not.empty;",
+        "  pm.environment.set('accessToken', body.access_token);",
+        "}"
+      ] } }]
+    },
+    {
+      "name": "03 - IAM current user",
+      "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/v1/users/me" },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('Usuário autenticado responde 200', function () { pm.response.to.have.status(200); });",
+        "pm.expect(pm.response.json().email).to.eql(pm.environment.get('email'));"
+      ] } }]
+    },
+    {
+      "name": "04 - Patient list",
+      "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/v1/patients?page=0&size=5" },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('Lista de pacientes responde 200', function () { pm.response.to.have.status(200); });",
+        "const body = pm.response.json();",
+        "pm.expect(body.items).to.be.an('array');",
+        "if (body.items.length && !pm.environment.get('patientId')) pm.environment.set('patientId', body.items[0].id);"
+      ] } }]
+    },
+    {
+      "name": "05 - Patient detail",
+      "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/v1/patients/{{patientId}}" },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('Detalhe do paciente responde 200', function () { pm.response.to.have.status(200); });",
+        "pm.expect(pm.response.json().id).to.eql(pm.environment.get('patientId'));"
+      ] } }]
+    },
+    {
+      "name": "06 - Appointments list",
+      "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/v1/appointments?page=0&size=5" },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('Lista de consultas responde 200', function () { pm.response.to.have.status(200); });",
+        "pm.expect(pm.response.json().items).to.be.an('array');"
+      ] } }]
+    },
+    {
+      "name": "07 - Medical records list",
+      "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/v1/records?page=0&size=5" },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('Lista de prontuários responde 200', function () { pm.response.to.have.status(200); });",
+        "pm.expect(pm.response.json().items).to.be.an('array');"
+      ] } }]
+    },
+    {
+      "name": "08 - Reporting summary",
+      "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/v1/reports/summary" },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('Resumo do dashboard responde 200', function () { pm.response.to.have.status(200); });",
+        "const body = pm.response.json();",
+        "['consultations_today', 'new_patients_this_month', 'cancellations_today'].forEach(function (key) { pm.expect(body).to.have.property(key); });"
+      ] } }]
+    },
+    {
+      "name": "09 - Services health",
+      "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/healthz/services" },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('Health agregado responde 200', function () { pm.response.to.have.status(200); });",
+        "pm.expect(pm.response.json()).to.have.property('status');"
+      ] } }]
+    },
+    {
+      "name": "10 - IAM users",
+      "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/v1/users?page=0&size=5" },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('Lista de usuários responde 200', function () { pm.response.to.have.status(200); });",
+        "pm.expect(pm.response.json().items).to.be.an('array');"
+      ] } }]
+    },
+    {
+      "name": "11 - Patient search",
+      "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/v1/patients?page=0&size=5&search=a" },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('Busca de pacientes responde 200', function () { pm.response.to.have.status(200); });",
+        "pm.expect(pm.response.json().items).to.be.an('array');"
+      ] } }]
+    },
+    {
+      "name": "12 - Patient allergies",
+      "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/v1/patients/{{patientId}}/allergies" },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('Alergias respondem 200', function () { pm.response.to.have.status(200); });",
+        "pm.expect(pm.response.json()).to.be.an('array');"
+      ] } }]
+    },
+    {
+      "name": "13 - Patient vaccines",
+      "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/v1/patients/{{patientId}}/vaccines" },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('Vacinas respondem 200', function () { pm.response.to.have.status(200); });",
+        "pm.expect(pm.response.json()).to.be.an('array');"
+      ] } }]
+    },
+    {
+      "name": "14 - Patient medications",
+      "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/v1/patients/{{patientId}}/medications?activeOnly=false" },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('Medicações respondem 200', function () { pm.response.to.have.status(200); });",
+        "pm.expect(pm.response.json()).to.be.an('array');"
+      ] } }]
+    },
+    {
+      "name": "15 - Patient documents",
+      "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/v1/patients/{{patientId}}/documents" },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('Documentos respondem 200', function () { pm.response.to.have.status(200); });",
+        "pm.expect(pm.response.json()).to.be.an('array');"
+      ] } }]
+    },
+    {
+      "name": "16 - Patient summary",
+      "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/v1/patients/{{patientId}}/summary" },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('Resumo do paciente responde 200', function () { pm.response.to.have.status(200); });",
+        "pm.expect(pm.response.json().id).to.eql(pm.environment.get('patientId'));"
+      ] } }]
+    },
+    {
+      "name": "17 - Audit summary",
+      "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/v1/audit/summary" },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('Resumo de auditoria responde 200', function () { pm.response.to.have.status(200); });",
+        "pm.expect(pm.response.json()).to.have.property('total');"
+      ] } }]
+    },
+    {
+      "name": "18 - AI debug health",
+      "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/v1/ai/debug" },
+      "event": [{ "listen": "test", "script": { "exec": [
+        "pm.test('Diagnóstico de IA existe e respeita autenticação', function () { pm.expect(pm.response.code).to.be.oneOf([200, 401, 403]); });"
+      ] } }]
+    },
+    {
+      "name": "19 - Doctors directory",
+      "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/v1/users/doctors" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Diretório de médicos responde 200', function () { pm.response.to.have.status(200); });", "pm.expect(pm.response.json().items).to.be.an('array');"] } }]
+    },
+    {
+      "name": "20 - OAuth accounts",
+      "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/v1/auth/oauth/accounts" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Contas OAuth respondem 200', function () { pm.response.to.have.status(200); });", "const body = pm.response.json();", "pm.expect(Array.isArray(body) || Array.isArray(body.accounts), 'formato de contas OAuth').to.eql(true);"] } }]
+    },
+    {
+      "name": "21 - Appointment filters",
+      "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/v1/appointments?page=0&size=5&status=SCHEDULED&sort_dir=asc" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Filtros de consultas respondem 200', function () { pm.response.to.have.status(200); });", "pm.expect(pm.response.json().items).to.be.an('array');"] } }]
+    },
+    {
+      "name": "22 - Patient clinical history",
+      "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/v1/records/patient/{{patientId}}?page=0&size=5" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Histórico clínico responde 200', function () { pm.response.to.have.status(200); });", "pm.expect(pm.response.json().items).to.be.an('array');"] } }]
+    },
+    {
+      "name": "23 - Reports consultations",
+      "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/v1/reports/consultations" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Relatório de consultas responde 200', function () { pm.response.to.have.status(200); });"] } }]
+    },
+    {
+      "name": "24 - Reports patients",
+      "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/v1/reports/patients" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Relatório de pacientes responde 200', function () { pm.response.to.have.status(200); });"] } }]
+    },
+    {
+      "name": "25 - Reports doctors",
+      "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/v1/reports/doctors" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Relatório de médicos responde 200', function () { pm.response.to.have.status(200); });"] } }]
+    },
+    {
+      "name": "26 - Audit logs",
+      "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/v1/audit/logs?page=1&size=10" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Logs de auditoria respondem 200', function () { pm.response.to.have.status(200); });", "pm.expect(pm.response.json().items).to.be.an('array');"] } }]
+    },
+    {
+      "name": "27 - Suspicious audit activities",
+      "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }], "url": "{{baseUrl}}/api/v1/audit/suspicious" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Atividades suspeitas respondem 200', function () { pm.response.to.have.status(200); });", "pm.expect(pm.response.json().alerts).to.be.an('array');"] } }]
+    },
+    {
+      "name": "28 - Public available slots without auth",
+      "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/v1/schedules/invalid/available-slots" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Endpoint público não exige autenticação e trata agenda inválida', function () { pm.expect(pm.response.code).to.be.oneOf([200, 404]); if (pm.response.code === 404) pm.expect(pm.response.json()).to.have.property('detail'); });"] } }]
+    },
+    {
+      "name": "29 - Invalid login contract",
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"email\": \"invalid@example.com\",\n  \"password\": \"invalid\"\n}" }, "url": "{{baseUrl}}/api/v1/auth/login" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Login inválido é rejeitado', function () { pm.expect(pm.response.code).to.be.oneOf([400, 401, 422]); });"] } }]
+    },
+    {
+      "name": "30 - Unauthorized patient list",
+      "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/v1/patients?page=0&size=1" },
+      "event": [{ "listen": "test", "script": { "exec": ["pm.test('Endpoint protegido rejeita anônimo', function () { pm.expect(pm.response.code).to.be.oneOf([401, 403]); });"] } }]
+    }
+  ]
+}

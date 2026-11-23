@@ -55,6 +55,7 @@ public class OAuthService {
     private final AuthService authService;
     private final IamEventPublisher eventPublisher;
     private final PasswordEncoder passwordEncoder;
+    private final IamAuditService auditService;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public OAuthService(
@@ -66,7 +67,8 @@ public class OAuthService {
             OAuthAccountRepository oauthAccountRepository,
             AuthService authService,
             IamEventPublisher eventPublisher,
-            PasswordEncoder passwordEncoder
+            PasswordEncoder passwordEncoder,
+            IamAuditService auditService
     ) {
         this.oauthConfig = oauthConfig;
         this.frontendCallbackUrl = frontendCallbackUrl;
@@ -77,6 +79,7 @@ public class OAuthService {
         this.authService = authService;
         this.eventPublisher = eventPublisher;
         this.passwordEncoder = passwordEncoder;
+        this.auditService = auditService;
     }
 
     public URI googleAuthorizationUri() {
@@ -109,7 +112,10 @@ public class OAuthService {
         if (!user.isActive()) {
             throw new ForbiddenException("Usuário inativo");
         }
-        return authService.issueTokenPair(user);
+        TokenResponseDTO tokens = authService.issueTokenPair(user);
+        auditService.record("users", "AUTH_LOGIN_OAUTH", user, null,
+                java.util.Map.of("provider", GOOGLE_PROVIDER, "success", true));
+        return tokens;
     }
 
     @Transactional(readOnly = true)

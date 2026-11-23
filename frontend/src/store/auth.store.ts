@@ -39,6 +39,8 @@ export const useAuthStore = create<AuthState>()(
       login: async (email, password) => {
         set({ isLoading: true })
         try {
+          // A stale access token must never be sent with the public login request.
+          tokenStorage.clear()
           const tokens = await authApi.login({ email, password })
           tokenStorage.set(tokens)
 

@@ -63,10 +63,10 @@ function AdminDoctorDashboard() {
   const todayDate = new Date().toISOString().split('T')[0]
   const { data: summary, isLoading: summaryLoading } = useDashboardSummary()
   const { data: appointments, isLoading: apptLoading } = useAppointments({
-    page: 1, size: 100, status: 'SCHEDULED', sort_dir: 'asc', from_date: todayDate, to_date: todayDate
+    page: 0, size: 100, status: 'SCHEDULED', sort_dir: 'asc', from_date: todayDate, to_date: todayDate
   })
   const { data: allAppointmentsToday, isLoading: allApptLoading } = useAppointments({
-    page: 1, size: 1, from_date: todayDate, to_date: todayDate
+    page: 0, size: 1, from_date: todayDate, to_date: todayDate
   })
   const { data: records, isLoading: recordsLoading } = useRecords()
   const confirmMutation = useConfirmAppointment()
@@ -237,7 +237,7 @@ function AdminDoctorDashboard() {
 function PatientDashboard() {
   const { user } = useAuthStore()
   const todayDate = new Date().toISOString().split('T')[0]
-  const { data: appointments } = useAppointments({ page: 1, size: 100, sort_dir: 'asc', from_date: todayDate, to_date: todayDate })
+  const { data: appointments } = useAppointments({ page: 0, size: 100, sort_dir: 'asc', from_date: todayDate, to_date: todayDate })
 
   return (
     <div className="space-y-6">

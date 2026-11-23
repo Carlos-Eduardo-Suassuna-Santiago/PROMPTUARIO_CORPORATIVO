@@ -34,7 +34,8 @@ export function formatRelative(date: string | null | undefined): string {
 export function calculateAge(dateOfBirth: string | null): number | null {
   if (!dateOfBirth) return null
   try {
-    return differenceInYears(new Date(), parseISO(dateOfBirth))
+    const age = differenceInYears(new Date(), parseISO(dateOfBirth))
+    return Number.isNaN(age) ? null : age
   } catch {
     return null
   }
@@ -121,12 +122,17 @@ export function downloadBlob(blob: Blob, filename: string): void {
 // ─── Axios error extractor ─────────────────────────────────────────────────
 export function getErrorMessage(error: unknown): string {
   if (error && typeof error === 'object' && 'response' in error) {
-    const axiosError = error as { response?: { data?: { detail?: any } } }
-    const detail = axiosError.response?.data?.detail
+    const axiosError = error as { response?: { status?: number; data?: { detail?: any; message?: string; error?: string } } }
+    const data = axiosError.response?.data
+    const detail = data?.detail
     if (typeof detail === 'string') return detail
     if (Array.isArray(detail)) {
       return detail.map(d => d.msg || JSON.stringify(d)).join(', ')
     }
+    if (typeof data?.message === 'string') return data.message
+    if (typeof data?.error === 'string') return data.error
+    if (axiosError.response?.status === 401) return 'E-mail ou senha inválidos'
+    if (axiosError.response?.status === 403) return 'Acesso restrito: somente administradores podem consultar a auditoria.'
     return 'Erro desconhecido'
   }
   return 'Erro ao processar requisição'

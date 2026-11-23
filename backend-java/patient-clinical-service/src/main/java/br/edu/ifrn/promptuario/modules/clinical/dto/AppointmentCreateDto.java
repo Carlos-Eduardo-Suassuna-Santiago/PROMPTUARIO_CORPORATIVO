@@ -7,7 +7,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.Instant;
 
-public record AppointmentCreateDto(@NotBlank String patientId, @NotBlank String doctorId, String slotId,
+public record AppointmentCreateDto(String patientId, @NotBlank String doctorId, String slotId,
                                    @NotNull Instant scheduledAt, AppointmentType appointmentType,
                                    @Size(max = 100) String specialty, String notes) {
     public Appointment toEntity() {

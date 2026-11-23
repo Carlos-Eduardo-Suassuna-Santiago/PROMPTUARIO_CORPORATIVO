@@ -19,6 +19,7 @@ import br.edu.ifrn.promptuario.iam.security.JwtTokenProvider;
 import com.warrenstrange.googleauth.GoogleAuthenticator;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
@@ -42,16 +43,19 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final TokenBlacklistService tokenBlacklistService;
     private final PasswordEncoder passwordEncoder;
+    private final IamAuditService auditService;
     private final GoogleAuthenticator googleAuthenticator = new GoogleAuthenticator();
     private final SecureRandom secureRandom = new SecureRandom();
 
+    @Autowired
     public AuthService(
             UserRepository userRepository,
             RefreshTokenRepository refreshTokenRepository,
             PasswordResetRepository passwordResetRepository,
             JwtTokenProvider jwtTokenProvider,
             TokenBlacklistService tokenBlacklistService,
-            PasswordEncoder passwordEncoder
+            PasswordEncoder passwordEncoder,
+            IamAuditService auditService
     ) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
@@ -59,6 +63,15 @@ public class AuthService {
         this.jwtTokenProvider = jwtTokenProvider;
         this.tokenBlacklistService = tokenBlacklistService;
         this.passwordEncoder = passwordEncoder;
+        this.auditService = auditService;
+    }
+
+    /** Backward-compatible constructor used by unit tests and simple embedders. */
+    public AuthService(UserRepository userRepository, RefreshTokenRepository refreshTokenRepository,
+                       PasswordResetRepository passwordResetRepository, JwtTokenProvider jwtTokenProvider,
+                       TokenBlacklistService tokenBlacklistService, PasswordEncoder passwordEncoder) {
+        this(userRepository, refreshTokenRepository, passwordResetRepository, jwtTokenProvider,
+                tokenBlacklistService, passwordEncoder, null);
     }
 
     @Transactional
@@ -71,7 +84,9 @@ public class AuthService {
         }
         ensureUserIsActive(user);
         validateTwoFactorCode(user, dto.totpCode());
-        return issueTokenPair(user);
+        TokenResponseDTO tokens = issueTokenPair(user);
+        if (auditService != null) auditService.record("users", "AUTH_LOGIN", user, null, java.util.Map.of("success", true));
+        return tokens;
     }
 
     @Transactional
@@ -112,6 +127,7 @@ public class AuthService {
 
         user.setHashedPassword(passwordEncoder.encode(dto.newPassword()));
         refreshTokenRepository.revokeAllByUserId(userId);
+        if (auditService != null) auditService.record("users", "PASSWORD_CHANGE", user, null, java.util.Map.of("success", true));
     }
 
     @Transactional
@@ -139,6 +155,7 @@ public class AuthService {
         user.setHashedPassword(passwordEncoder.encode(dto.newPassword()));
         resetToken.setUsed(true);
         refreshTokenRepository.revokeAllByUserId(user.getId());
+        if (auditService != null) auditService.record("users", "PASSWORD_RESET", user, null, java.util.Map.of("success", true));
     }
 
     /**

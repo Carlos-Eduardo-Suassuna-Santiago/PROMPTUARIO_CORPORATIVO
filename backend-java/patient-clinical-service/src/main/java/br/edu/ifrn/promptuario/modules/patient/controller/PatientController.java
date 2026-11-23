@@ -16,6 +16,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
+import br.edu.ifrn.promptuario.shared.exception.ForbiddenException;
 
 @RestController
 @RequestMapping("/api/v1/patients")
@@ -31,17 +32,26 @@ public class PatientController {
     public PatientListResponseDto list(@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="20") int size,@RequestParam(required=false) String search){return patients.listPatients(page,size,search);}
     @PostMapping @ResponseStatus(HttpStatus.CREATED) @PreAuthorize("hasAnyRole('ADMIN','ATTENDANT')") @Operation(summary="Create patient")
     public PatientResponseDto create(@Valid @RequestBody PatientCreateDto dto, Authentication auth){return patients.createPatient(dto, auth.getName());}
-    @GetMapping("/me") @PreAuthorize("hasRole('PATIENT')") public PatientResponseDto me(Authentication auth){return PatientResponseDto.fromEntity(patients.getPatientByUserId(auth.getName()));}
-    @GetMapping("/{id}") @PreAuthorize("hasAnyRole('ADMIN','DOCTOR','ATTENDANT') or #id == authentication.principal.claims['patient_id']") public PatientResponseDto get(@PathVariable String id){return PatientResponseDto.fromEntity(patients.getPatientById(id));}
-    @PatchMapping("/{id}") @PreAuthorize("hasAnyRole('ADMIN','ATTENDANT') or #id == authentication.principal.claims['patient_id']") public PatientResponseDto update(@PathVariable String id,@Valid @RequestBody PatientUpdateDto dto,Authentication auth){return patients.updatePatient(id,dto,auth.getName());}
+    @GetMapping("/me") @PreAuthorize("hasRole('PATIENT')") public PatientResponseDto me(Authentication auth){
+        var jwt = auth.getPrincipal() instanceof org.springframework.security.oauth2.jwt.Jwt token ? token : null;
+        String email = jwt == null ? null : jwt.getClaimAsString("email");
+        String fullName = jwt == null ? null : (jwt.getClaimAsString("name") != null ? jwt.getClaimAsString("name") : jwt.getClaimAsString("full_name"));
+        return PatientResponseDto.fromEntity(patients.getOrCreatePatient(auth.getName(), fullName, email));
+    }
+    @GetMapping("/{id}") @PreAuthorize("hasAnyRole('ADMIN','DOCTOR','ATTENDANT','PATIENT')") public PatientResponseDto get(@PathVariable String id,Authentication auth){assertPatientAccess(id,auth);return PatientResponseDto.fromEntity(patients.getPatientById(id));}
+    @PatchMapping("/{id}") @PreAuthorize("hasAnyRole('ADMIN','ATTENDANT','PATIENT')") public PatientResponseDto update(@PathVariable String id,@Valid @RequestBody PatientUpdateDto dto,Authentication auth){assertPatientAccess(id,auth);return patients.updatePatient(id,dto,auth.getName());}
     @DeleteMapping("/{id}") @ResponseStatus(HttpStatus.NO_CONTENT) @PreAuthorize("hasRole('ADMIN')") public void anonymize(@PathVariable String id,Authentication auth){patients.anonymizePatient(id,auth.getName());}
     @PostMapping("/{id}/allergies") @ResponseStatus(HttpStatus.CREATED) @PreAuthorize("hasAnyRole('ADMIN','DOCTOR','ATTENDANT')") public AllergyResponseDto addAllergy(@PathVariable String id,@Valid @RequestBody AllergyCreateDto dto){return AllergyResponseDto.fromEntity(allergies.addAllergy(id,dto));}
-    @GetMapping("/{id}/allergies") @PreAuthorize("hasAnyRole('ADMIN','DOCTOR','ATTENDANT','PATIENT')") public List<AllergyResponseDto> listAllergies(@PathVariable String id){return allergies.listAllergies(id).stream().map(AllergyResponseDto::fromEntity).toList();}
+    @GetMapping("/{id}/allergies") @PreAuthorize("hasAnyRole('ADMIN','DOCTOR','ATTENDANT','PATIENT')") public List<AllergyResponseDto> listAllergies(@PathVariable String id,Authentication auth){assertPatientAccess(id,auth);return allergies.listAllergies(id).stream().map(AllergyResponseDto::fromEntity).toList();}
     @PostMapping("/{id}/vaccines") @ResponseStatus(HttpStatus.CREATED) @PreAuthorize("hasAnyRole('ADMIN','DOCTOR','ATTENDANT')") public VaccineResponseDto addVaccine(@PathVariable String id,@Valid @RequestBody VaccineCreateDto dto,Authentication auth){return VaccineResponseDto.fromEntity(vaccines.addVaccine(id,dto,auth.getName()));}
-    @GetMapping("/{id}/vaccines") @PreAuthorize("hasAnyRole('ADMIN','DOCTOR','ATTENDANT','PATIENT')") public List<VaccineResponseDto> listVaccines(@PathVariable String id){return vaccines.listVaccines(id).stream().map(VaccineResponseDto::fromEntity).toList();}
+    @GetMapping("/{id}/vaccines") @PreAuthorize("hasAnyRole('ADMIN','DOCTOR','ATTENDANT','PATIENT')") public List<VaccineResponseDto> listVaccines(@PathVariable String id,Authentication auth){assertPatientAccess(id,auth);return vaccines.listVaccines(id).stream().map(VaccineResponseDto::fromEntity).toList();}
     @PostMapping("/{id}/medications") @ResponseStatus(HttpStatus.CREATED) @PreAuthorize("hasAnyRole('ADMIN','DOCTOR')") public MedicationResponseDto addMedication(@PathVariable String id,@Valid @RequestBody MedicationCreateDto dto,Authentication auth){return MedicationResponseDto.fromEntity(medications.addMedication(id,dto,auth.getName()));}
-    @GetMapping("/{id}/medications") @PreAuthorize("hasAnyRole('ADMIN','DOCTOR','ATTENDANT','PATIENT')") public List<MedicationResponseDto> listMedications(@PathVariable String id,@RequestParam(defaultValue="true") boolean activeOnly){return medications.listMedications(id,activeOnly).stream().map(MedicationResponseDto::fromEntity).toList();}
+    @GetMapping("/{id}/medications") @PreAuthorize("hasAnyRole('ADMIN','DOCTOR','ATTENDANT','PATIENT')") public List<MedicationResponseDto> listMedications(@PathVariable String id,@RequestParam(defaultValue="true") boolean activeOnly,Authentication auth){assertPatientAccess(id,auth);return medications.listMedications(id,activeOnly).stream().map(MedicationResponseDto::fromEntity).toList();}
     @PostMapping(value="/{id}/documents/upload", consumes="multipart/form-data") @ResponseStatus(HttpStatus.CREATED) @PreAuthorize("hasAnyRole('ADMIN','DOCTOR','ATTENDANT')") public DocumentResponseDto upload(@PathVariable String id,@RequestPart MultipartFile file,@RequestParam(required=false) String title,@RequestParam(required=false) String category,Authentication auth){return documents.uploadPatientDocument(id,file,title,category,auth.getName());}
-    @GetMapping("/{id}/documents") @PreAuthorize("hasAnyRole('ADMIN','DOCTOR','ATTENDANT','PATIENT')") public List<DocumentResponseDto> listDocuments(@PathVariable String id){patients.getPatientById(id); return documentRepository.findByPatient_IdAndActiveTrueOrderByCreatedAtDesc(id).stream().map(DocumentResponseDto::fromEntity).toList();}
-    @GetMapping("/{id}/summary") @PreAuthorize("hasAnyRole('ADMIN','DOCTOR','ATTENDANT','PATIENT')") public PatientSummaryResponseDto summary(@PathVariable String id){return PatientSummaryResponseDto.fromEntity(patients.getPatientById(id));}
+    @GetMapping("/{id}/documents") @PreAuthorize("hasAnyRole('ADMIN','DOCTOR','ATTENDANT','PATIENT')") public List<DocumentResponseDto> listDocuments(@PathVariable String id,Authentication auth){assertPatientAccess(id,auth); return documentRepository.findByPatient_IdAndActiveTrueOrderByCreatedAtDesc(id).stream().map(DocumentResponseDto::fromEntity).toList();}
+    @GetMapping("/{id}/summary") @PreAuthorize("hasAnyRole('ADMIN','DOCTOR','ATTENDANT','PATIENT')") public PatientSummaryResponseDto summary(@PathVariable String id,Authentication auth){assertPatientAccess(id,auth);return PatientSummaryResponseDto.fromEntity(patients.getPatientById(id));}
+    private void assertPatientAccess(String patientId, Authentication auth){
+        boolean privileged = auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_DOCTOR") || a.getAuthority().equals("ROLE_ATTENDANT"));
+        if (!privileged && auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_PATIENT")) && !patientId.equals(patients.getPatientByUserId(auth.getName()).getId())) throw new ForbiddenException("Acesso a outro paciente não permitido");
+    }
 }

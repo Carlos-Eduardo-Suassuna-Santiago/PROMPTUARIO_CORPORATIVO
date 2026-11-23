@@ -15,27 +15,29 @@ import java.util.List;
 public interface AppointmentRepository extends JpaRepository<Appointment, String> {
 
     @Query(value = """
-            select a from Appointment a
-            where (:patientId is null or a.patient.id = :patientId)
-              and (:doctorId is null or a.doctorId = :doctorId)
-              and (:status is null or a.status = :status)
-              and (:rangeStart is null or a.scheduledAt >= :rangeStart)
-              and (:rangeEnd is null or a.scheduledAt <= :rangeEnd)
-              and (:patientName is null or lower(a.patient.fullName) like lower(concat('%', :patientName, '%')))
-            """,
+            select a.* from appointments a
+            left join patients p on p.id = a.patient_id
+            where (coalesce(cast(:patientId as varchar), '') = '' or a.patient_id = cast(:patientId as varchar))
+              and (coalesce(cast(:doctorId as varchar), '') = '' or a.doctor_id = cast(:doctorId as varchar))
+              and (coalesce(cast(:status as varchar), '') = '' or a.status = cast(:status as varchar))
+              and (cast(:rangeStart as timestamptz) is null or a.scheduled_at >= cast(:rangeStart as timestamptz))
+              and (cast(:rangeEnd as timestamptz) is null or a.scheduled_at <= cast(:rangeEnd as timestamptz))
+              and (coalesce(cast(:patientName as varchar), '') = '' or lower(p.full_name) like lower(concat('%', cast(:patientName as varchar), '%')))
+            """, nativeQuery = true,
             countQuery = """
-            select count(a) from Appointment a
-            where (:patientId is null or a.patient.id = :patientId)
-              and (:doctorId is null or a.doctorId = :doctorId)
-              and (:status is null or a.status = :status)
-              and (:rangeStart is null or a.scheduledAt >= :rangeStart)
-              and (:rangeEnd is null or a.scheduledAt <= :rangeEnd)
-              and (:patientName is null or lower(a.patient.fullName) like lower(concat('%', :patientName, '%')))
+            select count(*) from appointments a
+            left join patients p on p.id = a.patient_id
+            where (coalesce(cast(:patientId as varchar), '') = '' or a.patient_id = cast(:patientId as varchar))
+              and (coalesce(cast(:doctorId as varchar), '') = '' or a.doctor_id = cast(:doctorId as varchar))
+              and (coalesce(cast(:status as varchar), '') = '' or a.status = cast(:status as varchar))
+              and (cast(:rangeStart as timestamptz) is null or a.scheduled_at >= cast(:rangeStart as timestamptz))
+              and (cast(:rangeEnd as timestamptz) is null or a.scheduled_at <= cast(:rangeEnd as timestamptz))
+              and (coalesce(cast(:patientName as varchar), '') = '' or lower(p.full_name) like lower(concat('%', cast(:patientName as varchar), '%')))
             """)
     Page<Appointment> searchAppointments(
             @Param("patientId") String patientId,
             @Param("doctorId") String doctorId,
-            @Param("status") AppointmentStatus status,
+            @Param("status") String status,
             @Param("rangeStart") Instant rangeStart,
             @Param("rangeEnd") Instant rangeEnd,
             @Param("patientName") String patientName,

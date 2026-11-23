@@ -109,8 +109,8 @@ Spring Boot junto com a API e consome a fila durável
 ## Testes
 
 ```bash
-cd backend/patient-clinical-service
-python -m pytest tests/ -v --tb=short
+cd <raiz-do-repositorio>
+.\tests\run-unit-tests.ps1 -Suite python
 ```
 
 Os testes são os mesmos dos serviços legados (pacientes, documentos, histórico

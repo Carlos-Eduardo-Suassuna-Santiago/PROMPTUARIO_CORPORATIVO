@@ -49,7 +49,7 @@ class AuthIntegrationTest {
 
     @Test
     void authenticatesSeedAdministratorAndReturnsValidJwt() throws Exception {
-        String accessToken = login("admin@promptuario.health", "admin123");
+        String accessToken = login("admin@promptuario.health", "Admin@12345");
         assertThat(jwtTokenProvider.validateToken(accessToken)).isTrue();
     }
 
@@ -89,7 +89,7 @@ class AuthIntegrationTest {
         String email = patientEmail();
         register(email);
         String patientId = userRepository.findByEmailIgnoreCase(email).orElseThrow().getId();
-        String adminToken = login("admin@promptuario.health", "admin123");
+        String adminToken = login("admin@promptuario.health", "Admin@12345");
         mockMvc.perform(delete("/api/v1/users/{id}", patientId).header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"Solicitação administrativa\"}"))
                 .andExpect(status().isNoContent());

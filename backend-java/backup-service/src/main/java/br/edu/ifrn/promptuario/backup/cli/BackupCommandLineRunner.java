@@ -73,10 +73,9 @@ public class BackupCommandLineRunner implements CommandLineRunner {
             return;
         }
 
-        CommandLine cmd = new CommandLine(new BackupCommands());
+        BackupCommands commands = new BackupCommands();
+        CommandLine cmd = new CommandLine(commands);
         cmd.parseArgs(args);
-
-        BackupCommands commands = (BackupCommands) cmd.getCommand().getUserObject();
 
         if (commands.once) {
             runOnce();
@@ -98,7 +97,7 @@ public class BackupCommandLineRunner implements CommandLineRunner {
         }
         try {
             log.info("Iniciando backup completo manual (--once)...");
-            backupOrchestratorService.executeFullBackup(ExecutionMode.FULL);
+            backupOrchestratorService.executeFullBackup(ExecutionMode.CLI);
             log.info("Backup completo finalizado com sucesso.");
             System.exit(0);
         } catch (Exception e) {

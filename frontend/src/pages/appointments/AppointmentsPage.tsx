@@ -220,6 +220,7 @@ function ConsultationDetailsModal({
     try {
       const rec = await createRecord.mutateAsync({
         appointment_id: appointment.id,
+        patient_id: appointment.patient_id,
         chief_complaint: complaint,
         anamnesis: anamnesis || undefined,
         physical_exam: physicalExam || undefined,
@@ -447,7 +448,8 @@ export function AppointmentsPage() {
   const confirm = useConfirmAppointment()
 
   const { data, isLoading } = useAppointments({
-    page,
+    // The UI is 1-based while Spring Data pagination is 0-based.
+    page: Math.max(page - 1, 0),
     size: 20,
     status: statusFilter || undefined,
     patient_name: patientNameFilter || undefined,

@@ -212,9 +212,9 @@ function AddAllergyModal({ patientId, open, onClose }: { patientId: string; open
 
 function InfoRow({ label, value, className }: { label: string; value?: string | null; className?: string }) {
   return (
-    <div className={cn('flex flex-col gap-0.5', className)}>
+    <div className={cn('min-w-0 flex flex-col gap-0.5', className)}>
       <dt className="text-xs text-slate-500 font-medium">{label}</dt>
-      <dd className="text-sm text-slate-200">{value ?? '—'}</dd>
+      <dd className="min-w-0 max-w-full break-all text-sm text-slate-200">{value ?? '—'}</dd>
     </div>
   )
 }
@@ -235,7 +235,7 @@ export function PatientDetailPage() {
   const { data: allergies } = usePatientAllergies(id)
   const { data: vaccines } = usePatientVaccines(id)
   const { data: medications } = usePatientMedications(id)
-  const { data: appointments } = useAppointments({ patient_id: id, page: 1, size: 10 })
+  const { data: appointments } = useAppointments({ patient_id: id, page: 0, size: 10 })
   const { data: records } = usePatientRecords(id)
   const deleteAllergy = useDeleteAllergy()
   const deleteMedication = useDeleteMedication()
@@ -289,11 +289,11 @@ export function PatientDetailPage() {
                 {allergies.length} alergia{allergies.length !== 1 ? 's' : ''}
               </Badge>
             )}
-            <Badge className={patient.is_active
+            <Badge className={patient.active
               ? 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/20'
               : 'bg-slate-500/15 text-slate-400 ring-slate-500/20'
             }>
-              {patient.is_active ? 'Ativo' : 'Inativo'}
+              {patient.active ? 'Ativo' : 'Inativo'}
             </Badge>
           </div>
         </CardBody>

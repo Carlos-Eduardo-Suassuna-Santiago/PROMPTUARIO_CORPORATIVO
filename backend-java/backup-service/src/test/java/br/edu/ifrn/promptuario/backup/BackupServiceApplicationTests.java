@@ -7,14 +7,31 @@ import br.edu.ifrn.promptuario.backup.config.StorageProperties;
 import br.edu.ifrn.promptuario.backup.model.DatabaseTarget;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 
 /**
  * Valida que o contexto sobe e que a topologia unificada (Fase 12) é vinculada
  * corretamente a partir do {@code application.yml}.
  */
 @SpringBootTest
+@Import(BackupServiceApplicationTests.TestSecurityConfiguration.class)
 class BackupServiceApplicationTests {
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class TestSecurityConfiguration {
+        @Bean
+        JwtDecoder jwtDecoder() {
+            return token -> Jwt.withTokenValue(token)
+                    .header("alg", "none")
+                    .claim("roles", java.util.List.of("ADMIN"))
+                    .build();
+        }
+    }
 
     @Autowired
     private BackupProperties backupProperties;
@@ -53,7 +70,7 @@ class BackupServiceApplicationTests {
     void bindsSchedulingAndRetention() {
         assertThat(backupProperties.scheduleCron()).isEqualTo("0 0 3 * * ?");
         assertThat(backupProperties.retentionDays()).isEqualTo(7);
-        assertThat(backupProperties.rootDir().toString()).isEqualTo("/var/backups");
+        assertThat(backupProperties.rootDir()).isEqualTo(java.nio.file.Path.of("/var/backups"));
     }
 
     @Test

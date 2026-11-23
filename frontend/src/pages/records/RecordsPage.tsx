@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import {
   FileText, Plus, ArrowLeft, Pill, FlaskConical,
-  Brain, Download, ChevronRight, Stethoscope,
+  Brain, Download, ChevronRight, Stethoscope, ShieldAlert,
   ClipboardList, AlertTriangle,
 } from 'lucide-react'
 import {
@@ -38,7 +38,7 @@ type RecordForm = z.infer<typeof recordSchema>
 function CreateRecordModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [error, setError] = useState<string | null>(null)
   const createRecord = useCreateRecord()
-  const { data: appointments } = useAppointments({ status: 'SCHEDULED', page: 1, size: 50 })
+  const { data: appointments } = useAppointments({ status: 'SCHEDULED', page: 0, size: 50 })
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<RecordForm>({
     resolver: zodResolver(recordSchema),
@@ -47,7 +47,9 @@ function CreateRecordModal({ open, onClose }: { open: boolean; onClose: () => vo
   const onSubmit = async (data: RecordForm) => {
     setError(null)
     try {
-      await createRecord.mutateAsync(data)
+      const appointment = appointments?.items.find((item) => item.id === data.appointment_id)
+      if (!appointment) throw new Error('Consulta selecionada não encontrada')
+      await createRecord.mutateAsync({ ...data, patient_id: appointment.patient_id })
       reset()
       onClose()
     } catch (err) {
@@ -227,7 +229,35 @@ function RecordCard({ record }: { record: MedicalRecord }) {
 }
 
 // ─── Record Detail View ───────────────────────────────────────────────────
+function AnalysisResultView({ result }: { result: Record<string, unknown> }) {
+  const labels: Record<string, string> = {
+    possible_diagnoses: 'Possíveis diagnósticos',
+    recommended_exams: 'Exames recomendados',
+    red_flags: 'Sinais de alerta',
+    recommendations: 'Recomendações',
+    interactions: 'Interações identificadas',
+  }
+  const priority = ['possible_diagnoses', 'recommended_exams', 'red_flags', 'recommendations', 'interactions']
+  const entries = Object.entries(result)
+  const renderValue = (key: string, value: unknown) => {
+    if (Array.isArray(value)) {
+      const alert = key === 'red_flags'
+      return <div className="grid gap-2 sm:grid-cols-2">{value.map((item, index) => <div key={index} className={cn('rounded-lg border px-3 py-2 text-sm', alert ? 'border-rose-500/20 bg-rose-500/5 text-rose-200' : 'border-slate-800 bg-slate-900/60 text-slate-300')}><span className="mr-2 text-slate-500">{alert ? '!' : '•'}</span>{String(item)}</div>)}</div>
+    }
+    if (value && typeof value === 'object') return <pre className="rounded-lg bg-slate-900/70 p-3 text-xs text-slate-300 whitespace-pre-wrap">{JSON.stringify(value, null, 2)}</pre>
+    return <p className="text-sm text-slate-300 whitespace-pre-wrap">{String(value ?? '—')}</p>
+  }
+  const ordered = [...priority.filter((key) => key in result), ...entries.map(([key]) => key).filter((key) => !priority.includes(key) && !['risk_level', 'disclaimer'].includes(key))]
+  return <div className="space-y-4">
+    {typeof result.risk_level === 'string' && <div className="flex items-center gap-3 rounded-xl border border-violet-500/20 bg-violet-500/5 p-4"><ShieldAlert className="h-5 w-5 text-violet-300" /><div><p className="text-xs uppercase tracking-wide text-slate-500">Classificação de risco</p><p className={cn('text-lg font-bold', RISK_COLORS[String(result.risk_level)])}>{String(result.risk_level)}</p></div></div>}
+    {typeof result.explanation === 'string' && <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-4"><p className="mb-1 text-xs font-semibold uppercase tracking-wide text-sky-300">Resumo clínico</p><p className="text-sm leading-6 text-slate-300 whitespace-pre-wrap">{String(result.explanation)}</p></div>}
+    {ordered.map((key) => <section key={key}><h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{labels[key] ?? key.replace(/_/g, ' ')}</h5>{renderValue(key, result[key])}</section>)}
+    {typeof result.disclaimer === 'string' && <p className="border-t border-slate-800 pt-3 text-xs italic text-slate-500">{String(result.disclaimer)}</p>}
+  </div>
+}
+
 function RecordDetailView({ recordId }: { recordId: string }) {
+  const [expandedAnalysis, setExpandedAnalysis] = useState<string | null>(null)
   const [prescriptionModal, setPrescriptionModal] = useState(false)
   const [analysisLoading, setAnalysisLoading] = useState(false)
   const isDoctor = useIsDoctor()
@@ -448,6 +478,7 @@ function RecordDetailView({ recordId }: { recordId: string }) {
           <CardBody className="space-y-3">
             {analyses?.items?.map((job) => (
               <div key={job.id} className="p-4 bg-slate-950/60 rounded-xl border border-slate-800/60">
+                <button type="button" className="w-full text-left" onClick={() => setExpandedAnalysis(expandedAnalysis === job.id ? null : job.id)}>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-medium text-slate-400">{job.analysis_type.replace(/_/g, ' ')}</span>
                   <div className="flex items-center gap-2">
@@ -466,14 +497,11 @@ function RecordDetailView({ recordId }: { recordId: string }) {
                     </Badge>
                   </div>
                 </div>
-                {job.result && typeof job.result === 'object' && 'recommendations' in job.result && (
-                  <div className="mt-2">
-                    <p className="text-xs text-slate-500 mb-1">Recomendações:</p>
-                    <ul className="space-y-0.5">
-                      {(job.result?.recommendations as string[])?.map((r, i) => (
-                        <li key={i} className="text-xs text-slate-400">• {r}</li>
-                      ))}
-                    </ul>
+                </button>
+                {expandedAnalysis === job.id && (
+                  <div className="mt-4 pt-4 border-t border-slate-800/60 space-y-3">
+                    {job.result && <div><p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Resultado da análise</p><AnalysisResultView result={job.result} /></div>}
+                    <p className="text-xs text-slate-600">Modelo: {job.model_version} · Criada em {formatDateTime(job.created_at)}</p>
                   </div>
                 )}
               </div>

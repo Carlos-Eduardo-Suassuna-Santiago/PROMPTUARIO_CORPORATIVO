@@ -74,7 +74,7 @@ export interface Patient {
   emergency_phone: string | null
   emergency_relation: string | null
   notes: string | null
-  is_active: boolean
+  active: boolean
   created_at: string
   updated_at: string
 }
@@ -93,8 +93,13 @@ export interface PatientCreate {
   blood_type?: string
   phone?: string
   email?: string
-  address?: { street?: string; city?: string; state?: string; zip_code?: string }
-  emergency_contact?: { name?: string; phone?: string; relation?: string }
+  street?: string
+  city?: string
+  state?: string
+  zip_code?: string
+  emergency_name?: string
+  emergency_phone?: string
+  emergency_relation?: string
   notes?: string
 }
 
@@ -147,6 +152,21 @@ export interface ContinuousMedication {
   active: boolean
   version: number
   notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PatientDocument {
+  id: string
+  patient_id: string
+  document_type: string
+  file_name: string
+  file_size: number
+  mime_type: string
+  file_hash: string
+  description: string | null
+  uploaded_by: string
+  active: boolean
   created_at: string
   updated_at: string
 }
@@ -236,6 +256,7 @@ export interface MedicalRecord {
 
 export interface MedicalRecordCreate {
   appointment_id: string
+  patient_id: string
   chief_complaint: string
   anamnesis?: string
   physical_exam?: string
