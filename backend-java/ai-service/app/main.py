@@ -6,7 +6,6 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel
 from typing import Literal, Optional
@@ -114,13 +113,8 @@ app = FastAPI(
     version="1.1.0",
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CORS is terminated by the API Gateway.  Do not emit a second wildcard
+# Access-Control-Allow-Origin header from the downstream service.
 
 setup_observability(app, settings.SERVICE_NAME, settings.LOG_LEVEL)
 
