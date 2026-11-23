@@ -42,17 +42,17 @@ public class RateLimiterConfig {
 
     @Bean("anonRateLimiter")
     public RedisRateLimiter anonRateLimiter() {
-        return new RedisRateLimiter(30, 60, 60);
+        return new RedisRateLimiter(30, 60, 1);
     }
 
     @Bean("authRateLimiter")
     public RedisRateLimiter authRateLimiter() {
-        return new RedisRateLimiter(300, 400, 60);
+        return new RedisRateLimiter(300, 400, 1);
     }
 
     @Bean("apiKeyRateLimiter")
     public RedisRateLimiter apiKeyRateLimiter() {
-        return new RedisRateLimiter(120, 150, 60);
+        return new RedisRateLimiter(120, 150, 1);
     }
 
     @Bean
