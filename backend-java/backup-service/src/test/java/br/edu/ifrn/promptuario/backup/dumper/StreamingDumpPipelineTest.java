@@ -185,9 +185,20 @@ class StreamingDumpPipelineTest {
         @Override
         protected List<String> buildCommand(DatabaseTarget target, DatabaseEndpoint endpoint) {
             if (payload == null) {
-                return List.of("sh", "-c", "echo boom >&2; exit 3");
+                return shell("echo boom >&2; exit 3",
+                        "Write-Error 'boom'; exit 3");
             }
-            return List.of("sh", "-c", "printf %s '" + payload + "'");
+            String escaped = payload.replace("'", "''");
+            return shell("printf %s '" + payload + "'",
+                    "$bytes = [Text.Encoding]::UTF8.GetBytes('" + escaped
+                            + "'); $out = [Console]::OpenStandardOutput(); $out.Write($bytes, 0, $bytes.Length)");
+        }
+
+        private static List<String> shell(String unixCommand, String windowsCommand) {
+            if (System.getProperty("os.name").toLowerCase().contains("win")) {
+                return List.of("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", windowsCommand);
+            }
+            return List.of("sh", "-c", unixCommand);
         }
 
         @Override

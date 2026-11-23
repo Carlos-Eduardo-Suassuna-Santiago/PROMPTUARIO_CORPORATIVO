@@ -93,7 +93,7 @@ public class BackupOperationController {
         CompletableFuture.runAsync(() -> {
             try {
                 log.info("Backup sob demanda iniciado via API REST.");
-                backupOrchestratorService.executeFullBackup(ExecutionMode.FULL);
+                backupOrchestratorService.executeFullBackup(ExecutionMode.MANUAL);
                 log.info("Backup sob demanda concluído.");
                 if (meterRegistry != null) {
                     meterRegistry.counter("backup_api_execute_total", "status", "success").increment();

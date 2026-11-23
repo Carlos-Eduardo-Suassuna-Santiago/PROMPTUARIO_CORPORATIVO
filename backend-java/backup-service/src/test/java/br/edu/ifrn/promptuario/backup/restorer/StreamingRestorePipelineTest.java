@@ -73,7 +73,9 @@ class StreamingRestorePipelineTest {
     }
 
     private ScriptedRestorer restorer(String outputFile) {
-        return new ScriptedRestorer(properties(30), cryptoService, endpoint, "cat > " + outputFile);
+        return new ScriptedRestorer(properties(30), cryptoService, endpoint,
+                "cat > " + outputFile,
+                ScriptedRestorer.writePowerShellCommand(outputFile));
     }
 
     private static void corruptLastByte(Path artifact) throws Exception {
@@ -143,7 +145,8 @@ class StreamingRestorePipelineTest {
         Path artifact = artifact();
         String sha256 = AbstractStreamingDatabaseRestorer.sha256Hex(artifact);
         ScriptedRestorer failing = new ScriptedRestorer(properties(30), cryptoService, endpoint,
-                "cat > /dev/null; echo 'erro de restauracao' >&2; exit 7");
+                "cat > /dev/null; echo 'erro de restauracao' >&2; exit 7",
+                "$inputStream = [Console]::OpenStandardInput(); $buffer = New-Object byte[] 8192; while (($read = $inputStream.Read($buffer, 0, $buffer.Length)) -gt 0) { }; Write-Error 'erro de restauracao'; exit 7");
 
         assertThatThrownBy(() -> failing.restore(DatabaseTarget.PATIENT_CLINICAL_DB, artifact, sha256))
                 .isInstanceOf(RestoreFailedException.class)
@@ -157,7 +160,8 @@ class StreamingRestorePipelineTest {
         Path artifact = artifact();
         String sha256 = AbstractStreamingDatabaseRestorer.sha256Hex(artifact);
         ScriptedRestorer failing = new ScriptedRestorer(properties(30), cryptoService, endpoint,
-                "echo 'autenticacao falhou para " + PASSWORD + "' >&2; exit 9");
+                "echo 'autenticacao falhou para " + PASSWORD + "' >&2; exit 9",
+                "Write-Error 'autenticacao falhou para " + PASSWORD + "'; exit 9");
 
         assertThatThrownBy(() -> failing.restore(DatabaseTarget.PATIENT_CLINICAL_DB, artifact, sha256))
                 .isInstanceOf(RestoreFailedException.class)
@@ -171,7 +175,7 @@ class StreamingRestorePipelineTest {
         Path artifact = artifact();
         String sha256 = AbstractStreamingDatabaseRestorer.sha256Hex(artifact);
         ScriptedRestorer hanging =
-                new ScriptedRestorer(properties(1), cryptoService, endpoint, "exec sleep 30");
+                new ScriptedRestorer(properties(1), cryptoService, endpoint, "exec sleep 30", "Start-Sleep -Seconds 30");
 
         long startMillis = System.currentTimeMillis();
         assertThatThrownBy(() -> hanging.restore(DatabaseTarget.PATIENT_CLINICAL_DB, artifact, sha256))
@@ -185,15 +189,18 @@ class StreamingRestorePipelineTest {
 
         private final DatabaseEndpoint endpoint;
         private final String shellCommand;
+        private final String windowsCommand;
 
         ScriptedRestorer(
                 BackupProperties backupProperties,
                 CryptoService cryptoService,
                 DatabaseEndpoint endpoint,
-                String shellCommand) {
+                String shellCommand,
+                String windowsCommand) {
             super(backupProperties, cryptoService);
             this.endpoint = endpoint;
             this.shellCommand = shellCommand;
+            this.windowsCommand = windowsCommand;
         }
 
         @Override
@@ -203,7 +210,17 @@ class StreamingRestorePipelineTest {
 
         @Override
         protected List<String> buildCommand(DatabaseEndpoint ignored) {
+            if (System.getProperty("os.name").toLowerCase().contains("win")) {
+                return List.of("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", windowsCommand);
+            }
             return List.of("sh", "-c", shellCommand);
+        }
+
+        private static String writePowerShellCommand(String outputFile) {
+            String escaped = outputFile.replace("'", "''");
+            return "$inputStream = [Console]::OpenStandardInput(); $output = [IO.File]::Create('"
+                    + escaped
+                    + "'); $inputStream.CopyTo($output); $output.Dispose()";
         }
 
         @Override
