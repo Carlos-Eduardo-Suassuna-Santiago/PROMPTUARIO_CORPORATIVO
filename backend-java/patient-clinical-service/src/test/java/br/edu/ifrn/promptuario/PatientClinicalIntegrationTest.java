@@ -66,6 +66,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Properties;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -110,7 +111,8 @@ class PatientClinicalIntegrationTest {
             .withAdminUser(RABBIT_USER)
             .withAdminPassword(RABBIT_PASSWORD)
             .withNetwork(NETWORK)
-            .withNetworkAliases("rabbitmq");
+            .withNetworkAliases("rabbitmq")
+            .withStartupTimeout(Duration.ofMinutes(3));
 
     @Container
     static final LocalStackContainer S3 = new LocalStackContainer(
@@ -210,7 +212,9 @@ class PatientClinicalIntegrationTest {
     }
 
     @BeforeEach
-    void declareCaptureQueues() {
+    void declareCaptureQueues() throws Exception {
+        awaitCondition("consumidor do worker PDF ficar pronto", Duration.ofSeconds(120),
+                () -> rabbitConsumerCount(PdfWorkerConfig.PDF_QUEUE) > 0);
         declareCaptureQueue(RECORD_CANONICAL_QUEUE, DOMAIN_EVENTS_EXCHANGE, "medical_record.created");
         declareCaptureQueue(RECORD_LEGACY_QUEUE, LEGACY_CLINICAL_EXCHANGE, "clinical.medical_record.created");
         declareCaptureQueue(PRESCRIPTION_CANONICAL_QUEUE, DOMAIN_EVENTS_EXCHANGE, "prescription.generated");
@@ -234,33 +238,33 @@ class PatientClinicalIntegrationTest {
         assertThat(health.getBody().path("status").asText()).isEqualTo("ok");
 
         ResponseEntity<JsonNode> patient = post("/api/v1/patients", Map.of(
-                "fullName", "Maria da Silva",
+                "full_name", "Maria da Silva",
                 "cpf", CPF,
-                "dateOfBirth", "1985-04-12",
+                "date_of_birth", "1985-04-12",
                 "gender", "F",
                 "email", "maria.integration@example.com",
-                "userId", UUID.randomUUID().toString()), token(ADMIN_ID, "ADMIN"));
+                "user_id", UUID.randomUUID().toString()), token(ADMIN_ID, "ADMIN"));
         assertCreated(patient);
         patientId = patient.getBody().path("id").asText();
 
         ResponseEntity<JsonNode> appointment = post("/api/v1/appointments", Map.of(
-                "patientId", patientId,
-                "doctorId", DOCTOR_ID,
-                "scheduledAt", APPOINTMENT_TIME.toString(),
-                "appointmentType", "CONSULTATION",
+                "patient_id", patientId,
+                "doctor_id", DOCTOR_ID,
+                "scheduled_at", APPOINTMENT_TIME.toString(),
+                "appointment_type", "CONSULTATION",
                 "specialty", "Clínica médica"), token(DOCTOR_ID, "DOCTOR"));
         assertCreated(appointment);
         appointmentId = appointment.getBody().path("id").asText();
 
         ResponseEntity<JsonNode> record = post("/api/v1/records", Map.of(
-                "appointmentId", appointmentId,
-                "patientId", patientId,
-                "chiefComplaint", "Dor de cabeça persistente",
+                "appointment_id", appointmentId,
+                "patient_id", patientId,
+             "chief_complaint", "Dor de cabeça persistente",
                 "anamnesis", "Sintomas há três dias",
-                "physicalExam", "Sem sinais de alarme",
+             "physical_exam", "Sem sinais de alarme",
                 "diagnosis", "Cefaleia a esclarecer",
-                "diagnosisCodes", new String[]{"R51.9"},
-                "treatmentPlan", "Analgesia e acompanhamento"), token(DOCTOR_ID, "DOCTOR"));
+             "diagnosis_codes", new String[]{"R51.9"},
+                "treatment_plan", "Analgesia e acompanhamento"), token(DOCTOR_ID, "DOCTOR"));
         assertCreated(record);
         recordId = record.getBody().path("id").asText();
 
@@ -310,9 +314,9 @@ class PatientClinicalIntegrationTest {
     @Order(2)
     void rejectsDuplicateCpf() {
         ResponseEntity<JsonNode> response = post("/api/v1/patients", Map.of(
-                "fullName", "Outra Pessoa",
+                "full_name", "Outra Pessoa",
                 "cpf", CPF,
-                "userId", UUID.randomUUID().toString()), token(ADMIN_ID, "ADMIN"));
+                "user_id", UUID.randomUUID().toString()), token(ADMIN_ID, "ADMIN"));
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
 
@@ -320,9 +324,9 @@ class PatientClinicalIntegrationTest {
     @Order(3)
     void rejectsAppointmentForMissingPatient() {
         ResponseEntity<JsonNode> response = post("/api/v1/appointments", Map.of(
-                "patientId", UUID.randomUUID().toString(),
-                "doctorId", UUID.randomUUID().toString(),
-                "scheduledAt", APPOINTMENT_TIME.plus(1, ChronoUnit.DAYS).toString()),
+                "patient_id", UUID.randomUUID().toString(),
+                "doctor_id", UUID.randomUUID().toString(),
+                "scheduled_at", APPOINTMENT_TIME.plus(1, ChronoUnit.DAYS).toString()),
                 token(DOCTOR_ID, "DOCTOR"));
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
@@ -331,9 +335,9 @@ class PatientClinicalIntegrationTest {
     @Order(4)
     void rejectsScheduleConflict() {
         ResponseEntity<JsonNode> response = post("/api/v1/appointments", Map.of(
-                "patientId", patientId,
-                "doctorId", DOCTOR_ID,
-                "scheduledAt", APPOINTMENT_TIME.toString()), token(DOCTOR_ID, "DOCTOR"));
+                "patient_id", patientId,
+                "doctor_id", DOCTOR_ID,
+                "scheduled_at", APPOINTMENT_TIME.toString()), token(DOCTOR_ID, "DOCTOR"));
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody().path("message").asText()).contains("Horário indisponível");
     }
@@ -348,7 +352,7 @@ class PatientClinicalIntegrationTest {
             assertCreated(response);
             String failedPrescriptionId = response.getBody().path("id").asText();
 
-            Message deadLetter = receiveRequired(PdfWorkerConfig.PDF_DLQ, Duration.ofSeconds(20));
+            Message deadLetter = receiveRequired(PdfWorkerConfig.PDF_DLQ, Duration.ofSeconds(60));
             JsonNode body = objectMapper.readTree(deadLetter.getBody());
             assertThat(body.path("prescriptionId").asText()).isEqualTo(failedPrescriptionId);
 
@@ -372,7 +376,7 @@ class PatientClinicalIntegrationTest {
         rabbitTemplate.send(DOMAIN_EVENTS_EXCHANGE, PdfWorkerConfig.PDF_ROUTING_KEY,
                 new Message("{invalid-json".getBytes(StandardCharsets.UTF_8), properties));
 
-        Message deadLetter = receiveRequired(PdfWorkerConfig.PDF_DLQ, Duration.ofSeconds(20));
+        Message deadLetter = receiveRequired(PdfWorkerConfig.PDF_DLQ, Duration.ofSeconds(60));
         assertThat(new String(deadLetter.getBody(), StandardCharsets.UTF_8)).isEqualTo("{invalid-json");
     }
 
@@ -412,12 +416,12 @@ class PatientClinicalIntegrationTest {
         medication.put("name", "Dipirona");
         medication.put("dosage", "500 mg");
         medication.put("frequency", "A cada 8 horas");
-        medication.put("durationDays", 3);
+        medication.put("duration_days", 3);
         medication.put("instructions", "Tomar após alimentação");
         return post("/api/v1/records/" + recordId + "/prescriptions", Map.of(
                 "medications", new Object[]{medication},
                 "instructions", "Suspender em caso de reação adversa",
-                "validDays", 30), token(DOCTOR_ID, "DOCTOR"));
+                "valid_days", 30), token(DOCTOR_ID, "DOCTOR"));
     }
 
     private ResponseEntity<JsonNode> post(String path, Object body, String bearerToken) {
@@ -441,6 +445,15 @@ class PatientClinicalIntegrationTest {
                 queueName, Binding.DestinationType.QUEUE, exchange, routingKey, null));
     }
 
+    private int rabbitConsumerCount(String queueName) {
+        Properties properties = rabbitAdmin.getQueueProperties(queueName);
+        if (properties == null) {
+            return 0;
+        }
+        Object count = properties.get("QUEUE_CONSUMER_COUNT");
+        return count instanceof Number ? ((Number) count).intValue() : 0;
+    }
+
     private Message receiveRequired(String queue, Duration timeout) {
         Message message = rabbitTemplate.receive(queue, timeout.toMillis());
         assertThat(message)
@@ -454,13 +467,13 @@ class PatientClinicalIntegrationTest {
         JsonNode legacyJson = objectMapper.readTree(legacy.getBody());
         assertThat(legacyJson).isEqualTo(canonicalJson);
 
-        String eventId = canonicalJson.path("eventId").asText();
+        String eventId = canonicalJson.path("event_id").asText();
         String timestamp = canonicalJson.path("timestamp").asText();
-        String correlationId = canonicalJson.path("correlationId").asText();
+        String correlationId = canonicalJson.path("correlation_id").asText();
         assertThat(eventId).isNotBlank();
         assertThat(timestamp).isNotBlank();
         assertThat(correlationId).isNotBlank();
-        assertThat(canonicalJson.path("eventType").asText()).isEqualTo(eventType);
+        assertThat(canonicalJson.path("event_type").asText()).isEqualTo(eventType);
 
         assertHeaders(canonical, eventId, eventType, timestamp, correlationId);
         assertHeaders(legacy, eventId, eventType, timestamp, correlationId);

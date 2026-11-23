@@ -24,6 +24,9 @@ public class PdfWorkerConfig {
     public static final String PDF_QUEUE = "prescription.pdf.generation";
     public static final String PDF_DLQ = "prescription.pdf.generation.dlq";
     public static final String PDF_ROUTING_KEY = "prescription.pdf.generate";
+    public static final String CERTIFICATE_PDF_QUEUE = "certificate.pdf.generation";
+    public static final String CERTIFICATE_PDF_DLQ = "certificate.pdf.generation.dlq";
+    public static final String CERTIFICATE_PDF_ROUTING_KEY = "certificate.pdf.generate";
 
     @Bean
     public Queue prescriptionPdfQueue() {
@@ -46,11 +49,22 @@ public class PdfWorkerConfig {
                 .with(PDF_ROUTING_KEY);
     }
 
+    @Bean
+    public Queue certificatePdfQueue() { Map<String,Object> args=new HashMap<>(); args.put("x-dead-letter-exchange",""); args.put("x-dead-letter-routing-key",CERTIFICATE_PDF_DLQ); return new Queue(CERTIFICATE_PDF_QUEUE,true,false,false,args); }
+    @Bean
+    public Queue certificatePdfDlq() { return new Queue(CERTIFICATE_PDF_DLQ,true); }
+    @Bean
+    public Binding certificatePdfBinding(@Qualifier("certificatePdfQueue") Queue queue,@Qualifier("domainEventsExchange") TopicExchange exchange) { return BindingBuilder.bind(queue).to(exchange).with(CERTIFICATE_PDF_ROUTING_KEY); }
+
     @Bean(name = "pdfTaskExecutor")
     public Executor pdfTaskExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(2);
-        executor.setMaxPoolSize(6);
+        // Two listener containers use two consumers each. The base pool must
+        // accommodate all four startup tasks; with an unbounded queue a pool
+        // of two threads would never grow and the remaining consumers would
+        // stay queued indefinitely.
+        executor.setCorePoolSize(4);
+        executor.setMaxPoolSize(8);
         executor.setQueueCapacity(100);
         executor.setThreadNamePrefix("pdf-worker-");
         executor.initialize();
