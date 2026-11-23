@@ -81,22 +81,41 @@ export function ProfilePage() {
     formState: { errors: patientErrors, isDirty: patientDirty },
   } = useForm<PatientForm>({
     resolver: zodResolver(patientSchema),
-    values: {
-      cpf: patient?.cpf ?? '',
-      date_of_birth: patient?.date_of_birth ?? '',
-      gender: patient?.gender ?? '',
-      blood_type: patient?.blood_type ?? '',
-      phone: patient?.phone ?? '',
-      street: patient?.street ?? '',
-      city: patient?.city ?? '',
-      state: patient?.state ?? '',
-      zip_code: patient?.zip_code ?? '',
-      emergency_name: patient?.emergency_name ?? '',
-      emergency_phone: patient?.emergency_phone ?? '',
-      emergency_relation: patient?.emergency_relation ?? '',
-      notes: patient?.notes ?? '',
+    defaultValues: {
+      cpf: '',
+      date_of_birth: '',
+      gender: '',
+      blood_type: '',
+      phone: '',
+      street: '',
+      city: '',
+      state: '',
+      zip_code: '',
+      emergency_name: '',
+      emergency_phone: '',
+      emergency_relation: '',
+      notes: '',
     },
   })
+
+  useEffect(() => {
+    if (!patient) return
+    resetPatient({
+      cpf: patient.cpf ?? '',
+      date_of_birth: patient.date_of_birth ?? '',
+      gender: patient.gender ?? '',
+      blood_type: patient.blood_type ?? '',
+      phone: patient.phone ?? '',
+      street: patient.street ?? '',
+      city: patient.city ?? '',
+      state: patient.state ?? '',
+      zip_code: patient.zip_code ?? '',
+      emergency_name: patient.emergency_name ?? '',
+      emergency_phone: patient.emergency_phone ?? '',
+      emergency_relation: patient.emergency_relation ?? '',
+      notes: patient.notes ?? '',
+    })
+  }, [patient, resetPatient])
 
   const {
     register: registerPassword,
@@ -133,17 +152,13 @@ export function ProfilePage() {
           gender: (data.gender as 'M' | 'F' | 'OTHER') || undefined,
           blood_type: data.blood_type || undefined,
           phone: data.phone ?? undefined,
-          address: {
-            street: data.street ?? undefined,
-            city: data.city ?? undefined,
-            state: data.state ?? undefined,
-            zip_code: data.zip_code ?? undefined,
-          },
-          emergency_contact: {
-            name: data.emergency_name ?? undefined,
-            phone: data.emergency_phone ?? undefined,
-            relation: data.emergency_relation ?? undefined,
-          },
+          street: data.street ?? undefined,
+          city: data.city ?? undefined,
+          state: data.state ?? undefined,
+          zip_code: data.zip_code ?? undefined,
+          emergency_name: data.emergency_name ?? undefined,
+          emergency_phone: data.emergency_phone ?? undefined,
+          emergency_relation: data.emergency_relation ?? undefined,
           notes: data.notes ?? undefined,
         },
       })

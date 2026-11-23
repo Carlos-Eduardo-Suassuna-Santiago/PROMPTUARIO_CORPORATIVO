@@ -2,7 +2,7 @@ import api from './client'
 import type {
   AuthTokens, LoginRequest, User, UserCreate, UserUpdate, PaginatedResponse,
   Patient, PatientCreate, PatientSummary, Allergy, AllergyCreate,
-  Vaccine, ContinuousMedication,
+  Vaccine, ContinuousMedication, PatientDocument,
   Appointment, AppointmentCreate,
   MedicalRecord, MedicalRecordCreate, Prescription, ExamRequest, MedicalCertificate,
   AnalysisJob, AnalysisType,
@@ -96,7 +96,7 @@ export const patientsApi = {
     api.post<Patient>('/patients', data).then(r => r.data),
 
   update: (id: string, data: Partial<PatientCreate>) =>
-    api.put<Patient>(`/patients/${id}`, data).then(r => r.data),
+    api.patch<Patient>(`/patients/${id}`, data).then(r => r.data),
 
   deactivate: (id: string) => api.delete(`/patients/${id}`),
 
@@ -120,7 +120,7 @@ export const patientsApi = {
   // Medications
   listMedications: (patientId: string, active_only = false) =>
     api.get<ContinuousMedication[]>(`/patients/${patientId}/medications`, {
-      params: { active_only },
+      params: { activeOnly: active_only },
     }).then(r => r.data),
 
   addMedication: (patientId: string, data: { name: string; dosage: string; frequency: string; prescribing_doctor?: string; started_at?: string; notes?: string }) =>
@@ -128,6 +128,19 @@ export const patientsApi = {
 
   deleteMedication: (patientId: string, medId: string) =>
     api.delete(`/patients/${patientId}/medications/${medId}`),
+
+  listDocuments: (patientId: string) =>
+    api.get<PatientDocument[]>(`/patients/${patientId}/documents`).then(r => r.data),
+
+  uploadDocument: (patientId: string, file: File, title?: string, category?: string) => {
+    const form = new FormData()
+    form.append('file', file)
+    if (title) form.append('title', title)
+    if (category) form.append('category', category)
+    return api.post<PatientDocument>(`/patients/${patientId}/documents/upload`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }).then(r => r.data)
+  },
 }
 
 // ─── Appointments ───────────────────────────────────────────────────────────
@@ -135,7 +148,13 @@ export const appointmentsApi = {
   list: (params?: {
     page?: number; size?: number; patient_id?: string;
     doctor_id?: string; status?: string; from_date?: string; to_date?: string;
-  }) => api.get<PaginatedResponse<Appointment>>('/appointments', { params }).then(r => r.data),
+    patient_name?: string;
+  }) => api.get<PaginatedResponse<Appointment>>('/appointments', { params: {
+    page: params?.page, size: params?.size, patientId: params?.patient_id,
+    doctorId: params?.doctor_id, status: params?.status,
+    fromDate: params?.from_date, toDate: params?.to_date,
+    patientName: params?.patient_name,
+  }}).then(r => r.data),
 
   get: (id: string) => api.get<Appointment>(`/appointments/${id}`).then(r => r.data),
 
@@ -143,13 +162,13 @@ export const appointmentsApi = {
     api.post<Appointment>('/appointments', data).then(r => r.data),
 
   cancel: (id: string, reason: string) =>
-    api.put<Appointment>(`/appointments/${id}/cancel`, { reason }).then(r => r.data),
+    api.patch<Appointment>(`/appointments/${id}/cancel`, { reason }).then(r => r.data),
 
   confirm: (id: string) =>
-    api.put<Appointment>(`/appointments/${id}/confirm`).then(r => r.data),
+    api.patch<Appointment>(`/appointments/${id}/confirm`).then(r => r.data),
 
   complete: (id: string) =>
-    api.put<Appointment>(`/appointments/${id}/complete`).then(r => r.data),
+    api.patch<Appointment>(`/appointments/${id}/complete`).then(r => r.data),
 }
 
 // ─── Medical Records ────────────────────────────────────────────────────────
@@ -171,7 +190,7 @@ export const recordsApi = {
     api.post<MedicalRecord>('/records', data).then(r => r.data),
 
   update: (id: string, data: Partial<MedicalRecordCreate>) =>
-    api.put<MedicalRecord>(`/records/${id}`, data).then(r => r.data),
+    api.patch<MedicalRecord>(`/records/${id}`, data).then(r => r.data),
 
   // Prescriptions
   createPrescription: (recordId: string, data: {

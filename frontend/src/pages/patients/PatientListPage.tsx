@@ -219,11 +219,11 @@ function PatientRow({ patient }: { patient: Patient }) {
       <Td>{patient.blood_type ?? <span className="text-slate-600">—</span>}</Td>
       <Td>{patient.phone ?? <span className="text-slate-600">—</span>}</Td>
       <Td>
-        <Badge className={patient.is_active
+        <Badge className={patient.active
           ? 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/20'
           : 'bg-slate-500/15 text-slate-400 ring-slate-500/20'
         }>
-          {patient.is_active ? 'Ativo' : 'Inativo'}
+          {patient.active ? 'Ativo' : 'Inativo'}
         </Badge>
       </Td>
       <Td>
@@ -263,7 +263,8 @@ export function PatientListPage() {
   const canCreate = role !== 'DOCTOR'
 
   const { data, isLoading } = usePatients({
-    page,
+    // The UI is 1-based while Spring Data pagination is 0-based.
+    page: Math.max(page - 1, 0),
     size: 20,
     search: debouncedSearch || undefined,
   })

@@ -23,11 +23,28 @@ export const api = axios.create({
   timeout: 30_000,
 })
 
+// These endpoints must remain usable when the browser has an expired/stale token.
+// Sending that token causes the Gateway to reject even a fresh login request.
+const PUBLIC_AUTH_PATHS = [
+  '/auth/login',
+  '/auth/refresh',
+  '/auth/forgot-password',
+  '/auth/reset-password',
+  '/auth/register-patient',
+]
+
+function isPublicAuthRequest(url?: string): boolean {
+  if (!url) return false
+  return PUBLIC_AUTH_PATHS.some((path) => url === path || url.endsWith(path))
+}
+
 // ── Request interceptor: attach Bearer token ──────────────────────────────
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = tokenStorage.getAccess()
-  if (token) {
+  if (token && !isPublicAuthRequest(config.url)) {
     config.headers.Authorization = `Bearer ${token}`
+  } else if (isPublicAuthRequest(config.url)) {
+    delete config.headers.Authorization
   }
   return config
 })
