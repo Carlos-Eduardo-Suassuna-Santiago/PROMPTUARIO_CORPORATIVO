@@ -14,7 +14,8 @@
 - [2026-11-09](#2026-11-09)
 - [2026-11-11](#2026-11-11--cutover-do-backup-service-de-python-para-java-21)
 - [2026-11-13](#2026-11-13)
-- [2026-11-25 — Entrada mais recente](#2026-11-25)
+- [2026-11-25 — Fase O0: Baseline de Observabilidade](#2026-11-25)
+- [2026-11-25 — Fase O1: Regras de Alerta e Dashboard Grafana — Entrada mais recente](#2026-11-25--fase-o1-atualização-de-scrape-alertas-e-dashboard-grafana)
 
 ---
 
@@ -1276,6 +1277,58 @@ O worker Celery exclusivo do Patient-Clinical foi retirado do fluxo atual e do c
 ### 📝 Resumo do Dia
 
 Concluída a Fase O0 da migração de observabilidade em modo estritamente somente leitura. A sintaxe de configuração e das 24 regras do Prometheus foi validada sem erros via `promtool`, e nenhum filtro hardcoded legado (`patient-service`/`clinical-service`) foi encontrado nos dashboards Grafana. A auditoria identificou que a stack Docker não estava em execução para coleta de métricas ao vivo, além de mapear divergências críticas para a Fase O1 — principalmente o `metrics_path: /metrics` configurado para serviços Java que expõem `/actuator/prometheus` e a dependência de métricas customizadas do stack Python nos painéis e alertas. Próximo passo: subir a stack para capturar os valores de baseline em execução ou avançar para a Fase O1 com as correções mapeadas em `OBSERVABILITY_BASELINE.md`.
+
+---
+
+## 2026-11-25 — Fase O1: Atualização de Scrape, Alertas e Dashboard Grafana
+
+### 📋 Implementação Proposta
+
+- Executar a **Fase O1** do plano de migração de observabilidade, atualizando `prometheus.yml`, `alerts.yml` e `promptuario.json` sem remover ou apagar séries históricas legadas (`patient-service` / `clinical-service`).
+- Garantir o scrape completo da topologia (`gateway`, `iam-service`, `patient-clinical-service`, `ai-service`, `reporting-service`, `backup-service`, `rabbitmq` e `node-exporter`) nos endpoints corretos (`/actuator/prometheus` para serviços Java e `/metrics` para serviços Python/RabbitMQ).
+- Atualizar regras de alerta com expressões inclusivas (`patient-clinical-service|patient-service|clinical-service`) e suporte dual a métricas Python e Micrometer, mantendo os alertas do `backup-service` e validando tudo com `promtool`.
+- Atualizar o dashboard `promptuario.json` (variáveis, painéis de vazão, P95, erros 5xx, contadores de negócio e nova linha colapsável para o `patient-clinical-service`).
+
+---
+
+### ✅ O que foi Implementado
+
+- **`backend/observability/prometheus/prometheus.yml`**:
+  - Atualizado `metrics_path` de `/metrics` para `/actuator/prometheus` nos jobs Java Spring Boot (`gateway`, `iam-service`, `patient-clinical-service`), mantendo `ai-service` e `reporting-service` em `/metrics`, `backup-service` em `/actuator/prometheus` (`backup-service:8000`), `rabbitmq` (`15692`), `postgres-exporter` (`9187`), `mongodb-exporter` (`9216`) e `node-exporter` (`9100`).
+  - Documentada em comentário a preservação das séries históricas legadas no TSDB.
+- **`backend/observability/prometheus/alerts.yml`**:
+  - Mantido `ServiceDown` (`up == 0`) e adicionado `PatientClinicalServiceDown` (`up{job="patient-clinical-service"} == 0 or absent(up{job="patient-clinical-service"})`).
+  - Atualizados `HighErrorRate`, `High4xxRate`, `HighLatency` e `HighLatencyDegradation` com `service=~"patient-clinical-service|patient-service|clinical-service"`, agregação por `service` (corrigindo o matching vetorial da divisão em `HighErrorRate`) e fallback em `OR` para séries Micrometer (`http_server_requests_seconds_*`) via `label_replace`.
+  - Atualizados `AuditEventsFailing`, `HighRejectedRequests`, `CircuitBreakerOpen` (incluindo `resilience4j_circuitbreaker_state`) e `PrescriptionGenerationFailing` (incluindo `reports_errors_total{report_type="PRESCRIPTIONS"}` e emissões de prescrição do unificado/legado).
+  - Preservadas as 3 regras de backup (`BackupJobFailed`, `BackupMissing24h`, `BackupArtifactTooSmall`), totalizando 25 regras.
+- **`backend/observability/grafana/provisioning/dashboards/promptuario.json`**:
+  - Atualizada a variável de template `servico` (`label_values(up, job)`, `allValue: ".*"`) com opções incluindo `patient-clinical-service` e serviços legados/atuais.
+  - Atualizados os painéis de vazão (`Taxa de Requisições por Serviço` / `Requests por segundo`), erros (`Taxa de erros 4xx`), latência (`Latência P95 (segundos)` / `Latência P95 por Endpoint`), status codes, endpoints e SLOs com expressões retrocompatíveis (`patient-clinical-service|patient-service|clinical-service`) e suporte dual em `OR` para Micrometer (`http_server_requests_seconds_*`).
+  - Adicionado painel `Taxa de Erros 5xx` (id `25`) em Visão Geral e painel `Contadores de Negócio (Consultas, Pacientes, Prescrições)` (id `26`) em Métricas de Negócio.
+  - Adicionada linha colapsável dedicada (`id: 800`, `"collapsed": true`) para o `Patient-Clinical Service (Unificado)` com 4 painéis internos: Prontuários SOAP (`id: 27`), Agendamentos e Consultas (`id: 28`), Prescrições e PDFs Assíncronos (`id: 29`, incluindo filas RabbitMQ de prescrição) e Vazão/Latência P95 (`id: 30`).
+- Nenhum commit foi realizado e nenhum código de aplicação foi alterado.
+
+---
+
+### ❌ O que deu Erro
+
+- A validação em runtime contra Prometheus (`curl -X POST http://localhost:9090/-/reload`) e Grafana não pôde ser executada nesta sessão porque a stack Docker do PROMPTUÁRIO permanece offline no ambiente (`localhost:9090` inacessível).
+- Identificado também no `backend/docker-compose.yml` que o serviço `prometheus` não possui a flag `--web.enable-lifecycle` habilitada no `command:`, portanto o endpoint `/-/reload` só funcionará se a flag for adicionada ou via `docker compose restart prometheus` / sinal `SIGHUP`.
+
+---
+
+### 🟢 O que Funcionou
+
+- `promtool check config /etc/prometheus/prometheus.yml` (via `prom/prometheus:v2.54.1`): **SUCCESS** (`1 rule files found`, sintaxe válida).
+- `promtool check rules /etc/prometheus/alerts.yml` (via `prom/prometheus:v2.54.1`): **SUCCESS** (`25 rules found`, 0 erros e 0 warnings).
+- Validação estrutural do JSON de `promptuario.json`: 38 itens (painéis + rows), 38 IDs únicos, 0 duplicados e layout `gridPos` sem sobreposições.
+- `git diff --check`: 0 erros de formatação/whitespace.
+
+---
+
+### 📝 Resumo do Dia
+
+Concluída a Fase O1 da migração de observabilidade. Os alvos de scrape do Prometheus foram alinhados aos endpoints reais dos serviços Java (`/actuator/prometheus`) e Python (`/metrics`), as 25 regras de alerta foram atualizadas com retrocompatibilidade (`patient-clinical-service|patient-service|clinical-service` + Micrometer) e validadas com `promtool`, e o dashboard `promptuario.json` ganhou suporte dual às métricas históricas e unificadas, novo painel de erros 5xx, painel consolidado de contadores de negócio e uma seção colapsável dedicada ao `patient-clinical-service`. Próximo passo: recarregar/reiniciar Prometheus e Grafana quando a stack estiver em execução e prosseguir para a Fase O2 (rastreamento OTel/Jaeger e SLOs).
 
 ---
 <!-- TEMPLATE PARA NOVO DIA — Copie o bloco abaixo ao iniciar uma nova entrada -->
