@@ -7,18 +7,22 @@ rule_files:
 
 scrape_configs:
   # ─── Application Services ──────────────────────────────────────
+  # Serviços Java 21 / Spring Boot 3 expõem métricas Micrometer em /actuator/prometheus.
+  # Serviços Python / FastAPI expõem métricas em /metrics.
+  # Séries históricas dos jobs legados (patient-service, clinical-service) permanecem
+  # preservadas no TSDB sem alteração/expurgo.
   - job_name: gateway
     static_configs:
       - targets: ["gateway:8000"]
-    metrics_path: /metrics
+    metrics_path: /actuator/prometheus
   - job_name: iam-service
     static_configs:
       - targets: ["iam-service:8000"]
-    metrics_path: /metrics
+    metrics_path: /actuator/prometheus
   - job_name: patient-clinical-service
     static_configs:
       - targets: ["patient-clinical-service:8000"]
-    metrics_path: /metrics
+    metrics_path: /actuator/prometheus
   - job_name: ai-service
     static_configs:
       - targets: ["ai-service:8000"]
