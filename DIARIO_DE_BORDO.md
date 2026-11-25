@@ -13,7 +13,8 @@
 - [2026-11-08](#2026-11-08)
 - [2026-11-09](#2026-11-09)
 - [2026-11-11](#2026-11-11--cutover-do-backup-service-de-python-para-java-21)
-- [2026-11-13 — Entrada mais recente](#2026-11-13)
+- [2026-11-13](#2026-11-13)
+- [2026-11-25 — Entrada mais recente](#2026-11-25)
 
 ---
 
@@ -1222,6 +1223,59 @@ A ponte temporária RabbitMQ entre o novo contrato Java e os consumidores legado
 ### 📝 Resumo do Dia
 
 O worker Celery exclusivo do Patient-Clinical foi retirado do fluxo atual e do código Python legado, enquanto os workers Celery do Reporting e toda a infraestrutura do AI Python foram preservados. O Patient-Clinical agora está documentado e configurado como um único container Java que contém tanto a API quanto o listener Spring AMQP responsável pelos PDFs de prescrições. Os dois Compose foram validados, a imagem Java foi reconstruída e a suíte Maven passou. O comando de testes do AI ficou operacional para testes unitários, revelando duas falhas preexistentes no próprio AI que foram registradas sem ampliar o escopo desta migração.
+
+---
+
+## 2026-11-25
+
+### 📋 Implementação Proposta
+
+- Executar a **Fase O0 (Diagnóstico Inicial e Baseline Somente Leitura)** da migração da stack de observabilidade (`Prometheus`, `Alertmanager rules`, `Grafana`, `OTel Collector` e `Jaeger`), sem alterar arquivos de runtime.
+- Validar a sintaxe de `backend/observability/prometheus/prometheus.yml` e `backend/observability/prometheus/alerts.yml` via `promtool`.
+- Varrer os dashboards Grafana (`promptuario.json`, `backup_dashboard.json`, `node-exporter.json`) em busca de filtros rígidos legados (`patient-service` / `clinical-service`) e avaliar a compatibilidade com `patient-clinical-service`.
+- Coletar status dos targets e métricas de referência em runtime e registrar o relatório `backend/observability/OBSERVABILITY_BASELINE.md`.
+
+---
+
+### ✅ O que foi Implementado
+
+- **Auditoria via `promtool` (`prom/prometheus:v2.54.1`)**:
+  - Validação de `backend/observability/prometheus/prometheus.yml`: sintaxe válida (`1 rule files found`).
+  - Validação de `backend/observability/prometheus/alerts.yml`: 24 regras válidas, sem erros de parsing/PromQL e sem nomes duplicados.
+  - Validação estrutural YAML de `backend/observability/otel-collector-config.yml`.
+- **Varredura dos Dashboards Grafana**:
+  - Inspeção completa dos 24 painéis e 2 variáveis de template de `backend/observability/grafana/provisioning/dashboards/promptuario.json`, além de `backup_dashboard.json` (9 painéis) e `node-exporter.json`.
+  - Confirmado que não existem filtros rígidos legados (`job="patient-service"`, `job="clinical-service"`, `service="patient-service"` ou `service="clinical-service"`).
+  - Mapeada a prontidão de cada painel de `promptuario.json` para o serviço unificado `patient-clinical-service`, identificando que as variáveis `servico` e `endpoint` não são referenciadas nos painéis e que 16 painéis dependem de nomes de métricas do stack Python (`http_requests_total`, `patients_registered_total`, `consultations_total`, `prescriptions_total`, etc.) ausentes nos serviços Java/Micrometer.
+- **Auditoria estática de scrape e tracing**:
+  - Verificado que `prometheus.yml` ainda aponta `metrics_path: /metrics` para `gateway`, `iam-service` e `patient-clinical-service`, embora os três serviços em `backend/docker-compose.yml` sejam aplicações Spring Boot que expõem `/actuator/prometheus`.
+  - Verificado que `HighErrorRate` em `alerts.yml` realiza divisão vetorial sem agregação (`sum by (service)`), podendo falhar no matching pelo label `status_code`.
+  - Confirmada a configuração válida do pipeline OTLP → Jaeger em `otel-collector-config.yml` e no `docker-compose.yml`, registrando que os módulos Java ainda não possuem dependência OTLP nos `pom.xml`.
+- **Geração de Documentação**:
+  - Criado `backend/observability/OBSERVABILITY_BASELINE.md` com data/hora da auditoria, resultados do `promtool`, inventário completo dos painéis do Grafana, gaps identificados para a Fase O1 e registro transparente da indisponibilidade de coleta em runtime.
+  - Nenhum arquivo de runtime foi modificado e nenhum commit foi realizado.
+
+---
+
+### ❌ O que deu Erro
+
+- A stack Docker do PROMPTUÁRIO (`prometheus`, `grafana`, `otel-collector`, `jaeger`, `gateway`, `iam-service`, `patient-clinical-service`, `ai-service`, `reporting-service`, `backup-service`, `rabbitmq`) não estava em execução no ambiente durante a auditoria (`localhost:9090`, `4318` e `16686` inacessíveis).
+- Em razão da stack offline, não foi possível coletar em runtime o JSON de `/api/v1/targets`, os valores correntes das métricas de negócio/latência/filas e a comprovação operacional ao vivo do pipeline `otel-collector:4318` → `jaeger:16686`.
+- O binário `promtool` não estava instalado no host; a validação foi executada via container efêmero da imagem oficial `prom/prometheus:v2.54.1` (a mesma definida no `docker-compose.yml`).
+
+---
+
+### 🟢 O que Funcionou
+
+- `promtool check config` e `promtool check rules` executados via `prom/prometheus:v2.54.1` aprovaram `prometheus.yml` e `alerts.yml` com 0 erros.
+- Varredura automatizada dos JSONs do Grafana e dos `application.yml` / `pom.xml` revelou com precisão os ajustes necessários para a Fase O1 (paths `/actuator/prometheus`, compatibilidade Micrometer e correção da regra `HighErrorRate`).
+- Relatório `backend/observability/OBSERVABILITY_BASELINE.md` gerado em modo somente leitura preservando integralmente os arquivos de runtime.
+
+---
+
+### 📝 Resumo do Dia
+
+Concluída a Fase O0 da migração de observabilidade em modo estritamente somente leitura. A sintaxe de configuração e das 24 regras do Prometheus foi validada sem erros via `promtool`, e nenhum filtro hardcoded legado (`patient-service`/`clinical-service`) foi encontrado nos dashboards Grafana. A auditoria identificou que a stack Docker não estava em execução para coleta de métricas ao vivo, além de mapear divergências críticas para a Fase O1 — principalmente o `metrics_path: /metrics` configurado para serviços Java que expõem `/actuator/prometheus` e a dependência de métricas customizadas do stack Python nos painéis e alertas. Próximo passo: subir a stack para capturar os valores de baseline em execução ou avançar para a Fase O1 com as correções mapeadas em `OBSERVABILITY_BASELINE.md`.
 
 ---
 <!-- TEMPLATE PARA NOVO DIA — Copie o bloco abaixo ao iniciar uma nova entrada -->
