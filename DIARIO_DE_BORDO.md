@@ -1366,3 +1366,55 @@ Breve parágrafo com o balanço geral do dia, decisões tomadas e próximos pass
 
 ---
 -->
+
+
+## 2026-11-25 — Fase O2: Correlação de Traces (OTel/Jaeger) e Formalização de SLOs
+
+### 📋 Implementação Proposta
+
+- Executar a **Fase O2** da migração de observabilidade: validação do pipeline OpenTelemetry/Jaeger, teste de propagação de `X-Correlation-Id` (Gateway -> patient-clinical-service -> RabbitMQ -> worker de prescrição) e formalização dos SLOs/SLIs em `backend/observability/SLO_DEFINITIONS.md`.
+- Enriquecer `backend/shared/observability.py` e `backend-java/shared/observability.py` para expor `correlation_id`/`request_id` nos logs estruturados e como atributos de Span no Jaeger.
+- Adicionar painéis "Error Budget" e "SLO Burn Rate" ao dashboard Grafana (`promptuario.json`).
+
+---
+
+### ✅ O que foi Implementado
+
+- **Validação do Pipeline OpenTelemetry/Jaeger**:
+  - Inspecionado `backend/observability/otel-collector-config.yml`: receptores OTLP gRPC (`0.0.0.0:4317`) e HTTP (`0.0.0.0:4318`) e exportação para `jaeger:4317` confirmados e válidos (YAML válido).
+  - Confirmada a topologia no `backend-java/docker-compose.yml`: `otel-collector` (`4317`/`4318`) depende de `jaeger` (`16686`, `COLLECTOR_OTLP_ENABLED=true`) e os serviços Python recebem `OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317`.
+- **Correlação de Traces**:
+  - Enriquecidos `backend/shared/observability.py` e `backend-java/shared/observability.py` com filtro de logging (`_RequestContextLogFilter`) que injeta `correlation_id` e `request_id` nos logs estruturados JSON.
+  - Adicionada instrumentação de Span: `trace.get_current_span().set_attribute("correlation_id"/"request_id"/"user_id")` no middleware de contexto, garantindo o atributo do Span no Jaeger sob `service.name=patient-clinical-service` (e demais serviços Python).
+  - Confirmada a propagação de `X-Correlation-Id`/`X-Request-Id` no Gateway (`RequestTracingGlobalFilter`) e nos serviços Java (`AuditService`/`IamAuditService`) e no worker de prescrição via eventos RabbitMQ (`correlation_id` no envelope de evento).
+- **Formalização dos SLOs**:
+  - Criado `backend/observability/SLO_DEFINITIONS.md` com SLIs/SLOs de Disponibilidade (99.5%/30d), Latência (P95 < 2s), Integridade de Auditoria (`rate(audit_events_failed_total[1h]) == 0`), Saúde de Fila RabbitMQ (< 1000/5min) e Circuit Breaker (== 0 Closed), além de Error Budget e Burn Rate com PromQL exatas.
+  - Incluído no documento o trecho de configuração do Grafana para os painéis de SLO.
+- **Painel de SLO no Grafana**:
+  - Adicionados ao dashboard `promptuario.json` (linha `💡 SLO / SLI Tracking`) os painéis `SLO - Error Budget (Disponibilidade)` (id 900) e `SLO - Burn Rate (Disponibilidade)` (id 901), com `gridPos` em `y=49`, `x=12`/`x=18`.
+  - JSON validado: 36 painéis, IDs únicos, sem sobreposição.
+- Nenhum commit foi realizado e nenhum código de aplicação foi removido.
+
+---
+
+### ❌ O que deu Erro
+
+- A stack Docker do PROMPTUÁRIO permanece offline no ambiente (`localhost:9090`, `4318`, `16686` inacessíveis), portanto não foi possível comprovar em runtime a presença do `X-Correlation-Id` nos headers de resposta do Gateway, nos logs e como atributo de Span no Jaeger; a validação foi feita por inspeção estática de código e configuração.
+- O serviço `patient-clinical-service` (Java/Spring Boot) não possui dependência OTLP/Micrometer-Tracing nos `pom.xml` atuais; a instrumentação OTel deste serviço depende de adição futura de dependências (fora do escopo desta fase, que foca em configuração e formalização).
+
+---
+
+### 🟢 O que Funcionou
+
+- `python3 -m py_compile` aprovou `backend/shared/observability.py` e `backend-java/shared/observability.py` sem erros de sintaxe.
+- `yaml.safe_load` validou `backend/observability/otel-collector-config.yml`.
+- `json.load` validou `promptuario.json` (36 painéis, IDs únicos).
+- `SLO_DEFINITIONS.md` gerado com 212 linhas e PromQL exatas conforme especificação da Fase O2.
+
+---
+
+### 📝 Resumo do Dia
+
+Concluída a Fase O2 da migração de observabilidade. O pipeline OTLP -> Jaeger foi validado estaticamente, os módulos Python de observabilidade foram enriquecidos para propagar `correlation_id`/`request_id` em logs estruturados e como atributos de Span, os SLOs/SLIs do sistema foram formalizados em `SLO_DEFINITIONS.md` com PromQL exatas, e o dashboard Grafana recebeu os painéis de "Error Budget" e "SLO Burn Rate". Próximo passo: subir a stack para validação em runtime (Fase O3/O4) e adicionar dependências OTLP aos módulos Java quando autorizado.
+
+---
