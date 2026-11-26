@@ -2304,6 +2304,132 @@
       "type": "stat"
     },
     {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 99
+              },
+              {
+                "color": "red",
+                "value": 95
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 12,
+        "y": 49
+      },
+      "id": 900,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "mean"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.2.2",
+      "targets": [
+        {
+          "expr": "(0.005 - (sum(rate(http_requests_total{status_code=~\"5..\"}[5m])) / sum(rate(http_requests_total[5m])))) / 0.005 * 100",
+          "legendFormat": "Error Budget",
+          "refId": "A"
+        }
+      ],
+      "title": "SLO - Error Budget (Disponibilidade)",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 99
+              },
+              {
+                "color": "red",
+                "value": 95
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 18,
+        "y": 49
+      },
+      "id": 901,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "mean"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.2.2",
+      "targets": [
+        {
+          "expr": "(sum(rate(http_requests_total{status_code=~\"5..\"}[5m])) / sum(rate(http_requests_total[5m]))) / 0.005",
+          "legendFormat": "Burn Rate",
+          "refId": "A"
+        }
+      ],
+      "title": "SLO - Burn Rate (Disponibilidade)",
+      "type": "stat"
+    },
+    {
       "collapsed": true,
       "gridPos": {
         "h": 1,
@@ -2697,130 +2823,30 @@
       "type": "row"
     },
     {
-      "datasource": "Prometheus",
+      "datasource": null,
       "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 99
-              },
-              {
-                "color": "red",
-                "value": 95
-              }
-            ]
-          },
-          "unit": "percent"
-        },
+        "defaults": {},
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
-        "w": 6,
-        "x": 12,
-        "y": 49
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 56
       },
-      "id": 900,
+      "id": 902,
       "options": {
-        "colorMode": "background",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "mean"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
+        "content": "# 🏷️ Serviços Legados Aposentados (Retired)\n\nOs serviços `patient-service` e `clinical-service` foram aposentados da stack de observabilidade ativa.\n\n- **Substituídos por:** `patient-clinical-service` (topologia unificada V2)\n- **Filtros nos dashboards:** Removidos; variável `servico` padrão = `patient-clinical-service`\n- **Séries históricas no TSDB:** **Preservadas** — não houve expurgo ou renomeação de métricas\n- **Consultas ativas:** Usam regex inclusiva `patient-clinical-service|patient-service|clinical-service` para suporte dual durante a transição\n\n> Status: **RETIRED** — componentes legados fora do runtime ativo.\n",
+        "mode": "markdown"
       },
       "pluginVersion": "11.2.2",
       "targets": [
         {
-          "expr": "(0.005 - (sum(rate(http_requests_total{status_code=~\"5..\"}[5m])) / sum(rate(http_requests_total[5m])))) / 0.005 * 100",
-          "legendFormat": "Error Budget",
           "refId": "A"
         }
       ],
-      "title": "SLO - Error Budget (Disponibilidade)",
-      "type": "stat"
-    },
-    {
-      "datasource": "Prometheus",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 99
-              },
-              {
-                "color": "red",
-                "value": 95
-              }
-            ]
-          },
-          "unit": "percent"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 6,
-        "x": 18,
-        "y": 49
-      },
-      "id": 901,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "mean"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "11.2.2",
-      "targets": [
-        {
-          "expr": "(sum(rate(http_requests_total{status_code=~\"5..\"}[5m])) / sum(rate(http_requests_total[5m]))) / 0.005",
-          "legendFormat": "Burn Rate",
-          "refId": "A"
-        }
-      ],
-      "title": "SLO - Burn Rate (Disponibilidade)",
-      "type": "stat"
+      "title": "🏷️ Legacy Services (Retired)",
+      "type": "text"
     }
   ],
   "refresh": "30s",
