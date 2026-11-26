@@ -7,18 +7,22 @@ rule_files:
 
 scrape_configs:
   # ─── Application Services ──────────────────────────────────────
+  # Serviços Java 21 / Spring Boot 3 expõem métricas Micrometer em /actuator/prometheus.
+  # Serviços Python / FastAPI expõem métricas em /metrics.
+  # Séries históricas dos jobs legados (patient-service, clinical-service) permanecem
+  # preservadas no TSDB sem alteração/expurgo.
   - job_name: gateway
     static_configs:
       - targets: ["gateway:8000"]
-    metrics_path: /metrics
+    metrics_path: /actuator/prometheus
   - job_name: iam-service
     static_configs:
       - targets: ["iam-service:8000"]
-    metrics_path: /metrics
+    metrics_path: /actuator/prometheus
   - job_name: patient-clinical-service
     static_configs:
       - targets: ["patient-clinical-service:8000"]
-    metrics_path: /metrics
+    metrics_path: /actuator/prometheus
   - job_name: ai-service
     static_configs:
       - targets: ["ai-service:8000"]
@@ -63,3 +67,10 @@ scrape_configs:
   - job_name: node-exporter
     static_configs:
       - targets: ["node-exporter:9100"]
+
+  # ─── Política de Preservação de Séries Históricas ─────────────────────────
+  # PRINCÍPIO: Nunca renomear métricas já coletadas nem expurgar séries do TSDB.
+  # Séries legadas emitidas com service="patient-service" ou service="clinical-service"
+  # permanecem preservadas no Prometheus TSDB para consulta retrospectiva e auditoria.
+  # A migração para patient-clinical-service adiciona novas séries sem remover as antigas.
+  # Rollback de qualquer fase é feito via `git revert` — nenhuma série é deletada do disco.

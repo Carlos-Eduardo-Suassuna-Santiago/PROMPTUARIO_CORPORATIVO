@@ -236,15 +236,10 @@ scrape_configs:
       - targets:
           - iam-service:8001
 
-  - job_name: "patient-service"
+  - job_name: "patient-clinical-service"
     static_configs:
       - targets:
-          - patient-service:8002
-
-  - job_name: "clinical-service"
-    static_configs:
-      - targets:
-          - clinical-service:8003
+          - patient-clinical-service:8002
 
   - job_name: "ai-service"
     static_configs:
@@ -255,6 +250,11 @@ scrape_configs:
     static_configs:
       - targets:
           - reporting-service:8005
+
+  - job_name: "backup-service"
+    static_configs:
+      - targets:
+          - backup-service:8006
 ```
 
 ---

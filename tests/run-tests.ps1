@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('java', 'python', 'newman', 'all')]
+    [ValidateSet('java', 'python', 'frontend', 'smoke', 'security', 'load', 'mutation', 'newman', 'all')]
     [string]$Suite = 'java',
     [ValidateSet('unit', 'verify', 'integration')]
     [string]$Mode = 'unit',
@@ -8,13 +8,17 @@ param(
     [string]$Service = 'all',
     [switch]$Coverage,
     [switch]$FailFast,
-    [switch]$IncludeIntegration
+    [switch]$IncludeIntegration,
+    [string]$SecurityPassword,
+    [ValidateSet('all', 'java', 'python', 'frontend')]
+    [string]$MutationScope = 'all'
 )
 
 $ErrorActionPreference = 'Stop'
 $RepositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $JavaRoot = Join-Path $RepositoryRoot 'backend-java'
 $PythonRoot = Join-Path $RepositoryRoot 'backend'
+$FrontendRoot = Join-Path $RepositoryRoot 'frontend'
 
 if ($IncludeIntegration) { $Mode = 'integration' }
 
@@ -82,7 +86,68 @@ function Invoke-NewmanSuite {
     if ($LASTEXITCODE -ne 0) { throw "Newman falhou com código $LASTEXITCODE." }
 }
 
+function Invoke-FrontendSuite {
+    if (-not (Test-Path (Join-Path $FrontendRoot 'package.json'))) { throw 'package.json do frontend nÃ£o foi encontrado.' }
+    $script = if ($Mode -eq 'unit') { 'test' } elseif ($Mode -eq 'integration') { 'test:e2e' } else { 'verify' }
+    if ($script -eq 'verify') {
+        foreach ($npmScript in @('type-check', 'lint', 'test', 'build')) {
+            Invoke-External -File 'npm' -Arguments @('run', $npmScript) -WorkingDirectory $FrontendRoot
+        }
+        return
+    }
+    $arguments = @('run', $script)
+    if ($Coverage -and $script -eq 'test') { $arguments = @('run', 'test:coverage') }
+    if ($Mode -eq 'integration') {
+        $previousFrontendUrl = $env:E2E_FRONTEND_URL
+        try {
+            $env:E2E_FRONTEND_URL = 'http://127.0.0.1'
+            Invoke-External -File 'npm' -Arguments $arguments -WorkingDirectory $FrontendRoot
+        }
+        finally {
+            $env:E2E_FRONTEND_URL = $previousFrontendUrl
+        }
+    }
+    else {
+        Invoke-External -File 'npm' -Arguments $arguments -WorkingDirectory $FrontendRoot
+    }
+}
+
+function Invoke-SmokeSuite {
+    $script = Join-Path $PSScriptRoot 'smoke/run-smoke.ps1'
+    if (-not (Test-Path $script)) { throw 'Runner de smoke test não encontrado.' }
+    & $script
+    if ($LASTEXITCODE -notin @(0, 2)) { throw "Smoke test falhou com código $LASTEXITCODE." }
+    if ($LASTEXITCODE -eq 2) { Write-Warning 'Smoke funcional passou, mas há falhas separadas de telemetria.' }
+}
+
+function Invoke-SecuritySuite {
+    $script = Join-Path $PSScriptRoot 'security/run-security.ps1'
+    if (-not (Test-Path $script)) { throw 'Runner de segurança não encontrado.' }
+    if ([string]::IsNullOrWhiteSpace($SecurityPassword)) { & $script }
+    else { & $script -NewmanPassword $SecurityPassword }
+    if ($LASTEXITCODE -ne 0) { throw "Security suite falhou com código $LASTEXITCODE." }
+}
+
+function Invoke-LoadSuite {
+    $script = Join-Path $PSScriptRoot 'load/run-load.ps1'
+    if (-not (Test-Path $script)) { throw 'Runner de carga não encontrado.' }
+    & $script
+    if ($LASTEXITCODE -ne 0) { throw "Load test falhou com código $LASTEXITCODE." }
+}
+
+function Invoke-MutationSuite {
+    $script = Join-Path $PSScriptRoot 'mutation/run-mutation.ps1'
+    if (-not (Test-Path $script)) { throw 'Runner de mutação não encontrado.' }
+    & $script -Scope $MutationScope -Service $Service
+    if ($LASTEXITCODE -ne 0) { throw "Mutation suite falhou com código $LASTEXITCODE." }
+}
+
 if ($Suite -in @('java', 'all')) { Invoke-JavaSuite }
 if ($Suite -in @('python', 'all')) { Invoke-PythonSuite }
+if ($Suite -in @('frontend', 'all')) { Invoke-FrontendSuite }
+if ($Suite -in @('smoke', 'all')) { Invoke-SmokeSuite }
+if ($Suite -eq 'security') { Invoke-SecuritySuite }
+if ($Suite -eq 'load') { Invoke-LoadSuite }
+if ($Suite -eq 'mutation') { Invoke-MutationSuite }
 if ($Suite -eq 'newman') { Invoke-NewmanSuite }
 Write-Host "`nSuíte '$Suite' ($Mode) concluída com sucesso." -ForegroundColor Green

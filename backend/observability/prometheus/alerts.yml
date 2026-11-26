@@ -11,6 +11,16 @@ groups:
           summary: "Serviço {{ $labels.job }} está down"
           description: "O serviço {{ $labels.job }} está inacessível há mais de 1 minuto."
 
+      - alert: PatientClinicalServiceDown
+        expr: up{job="patient-clinical-service"} == 0 or absent(up{job="patient-clinical-service"})
+        for: 1m
+        labels:
+          severity: critical
+          service: patient-clinical-service
+        annotations:
+          summary: "Serviço unificado patient-clinical-service está down"
+          description: "O serviço unificado patient-clinical-service está inacessível ou ausente do scrape há mais de 1 minuto."
+
       - alert: NoHeartbeat
         expr: time() - process_start_time_seconds{job=~".+"} > 300
         for: 1m
@@ -23,8 +33,26 @@ groups:
       # ─── HTTP Errors ──────────────────────────────────────────
       - alert: HighErrorRate
         expr: |
-          rate(http_requests_total{status_code=~"5.."}[5m]) /
-          rate(http_requests_total[5m]) > 0.05
+          (
+            sum by (service) (rate(http_requests_total{service=~"patient-clinical-service|patient-service|clinical-service",status_code=~"5.."}[5m]))
+            /
+            sum by (service) (rate(http_requests_total{service=~"patient-clinical-service|patient-service|clinical-service"}[5m]))
+          ) > 0.05
+          or
+          (
+            sum by (service) (rate(http_requests_total{status_code=~"5.."}[5m]))
+            /
+            sum by (service) (rate(http_requests_total[5m]))
+          ) > 0.05
+          or
+          label_replace(
+            (
+              sum by (job) (rate(http_server_requests_seconds_count{job=~"patient-clinical-service|gateway|iam-service",status=~"5.."}[5m]))
+              /
+              sum by (job) (rate(http_server_requests_seconds_count{job=~"patient-clinical-service|gateway|iam-service"}[5m]))
+            ) > 0.05,
+            "service", "$1", "job", "(.+)"
+          )
         for: 2m
         labels:
           severity: warning
@@ -34,8 +62,26 @@ groups:
 
       - alert: High4xxRate
         expr: |
-          rate(http_requests_4xx_total[5m]) /
-          rate(http_requests_total[5m]) > 0.10
+          (
+            sum by (service) (rate(http_requests_4xx_total{service=~"patient-clinical-service|patient-service|clinical-service"}[5m]))
+            /
+            sum by (service) (rate(http_requests_total{service=~"patient-clinical-service|patient-service|clinical-service"}[5m]))
+          ) > 0.10
+          or
+          (
+            sum by (service) (rate(http_requests_4xx_total[5m]))
+            /
+            sum by (service) (rate(http_requests_total[5m]))
+          ) > 0.10
+          or
+          label_replace(
+            (
+              sum by (job) (rate(http_server_requests_seconds_count{job=~"patient-clinical-service|gateway|iam-service",status=~"4.."}[5m]))
+              /
+              sum by (job) (rate(http_server_requests_seconds_count{job=~"patient-clinical-service|gateway|iam-service"}[5m]))
+            ) > 0.10,
+            "service", "$1", "job", "(.+)"
+          )
         for: 3m
         labels:
           severity: warning
@@ -46,7 +92,14 @@ groups:
       # ─── Latency ──────────────────────────────────────────────
       - alert: HighLatency
         expr: |
-          histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+          histogram_quantile(0.95, sum by (le, service) (rate(http_request_duration_seconds_bucket{service=~"patient-clinical-service|patient-service|clinical-service"}[5m]))) > 2
+          or
+          histogram_quantile(0.95, sum by (le, service) (rate(http_request_duration_seconds_bucket[5m]))) > 2
+          or
+          label_replace(
+            histogram_quantile(0.95, sum by (le, job) (rate(http_server_requests_seconds_bucket{job=~"patient-clinical-service|gateway|iam-service"}[5m]))) > 2,
+            "service", "$1", "job", "(.+)"
+          )
         for: 5m
         labels:
           severity: warning
@@ -56,7 +109,14 @@ groups:
 
       - alert: HighLatencyDegradation
         expr: |
-          histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 1.5
+          histogram_quantile(0.95, sum by (le, service) (rate(http_request_duration_seconds_bucket{service=~"patient-clinical-service|patient-service|clinical-service"}[5m]))) > 1.5
+          or
+          histogram_quantile(0.95, sum by (le, service) (rate(http_request_duration_seconds_bucket[5m]))) > 1.5
+          or
+          label_replace(
+            histogram_quantile(0.95, sum by (le, job) (rate(http_server_requests_seconds_bucket{job=~"patient-clinical-service|gateway|iam-service"}[5m]))) > 1.5,
+            "service", "$1", "job", "(.+)"
+          )
         for: 10m
         labels:
           severity: info
@@ -159,7 +219,10 @@ groups:
           description: "O AI Service está com {{ $value }} erros/minuto — possível falha no LLM."
 
       - alert: AuditEventsFailing
-        expr: rate(audit_events_failed_total[5m]) > 0
+        expr: |
+          rate(audit_events_failed_total{service=~"patient-clinical-service|patient-service|clinical-service"}[5m]) > 0
+          or
+          rate(audit_events_failed_total[5m]) > 0
         for: 5m
         labels:
           severity: warning
@@ -177,7 +240,13 @@ groups:
           description: "O Reporting Service está com {{ $value }} erros/min na geração de relatórios."
 
       - alert: CircuitBreakerOpen
-        expr: gateway_circuit_state > 0
+        expr: |
+          gateway_circuit_state > 0
+          or
+          label_replace(
+            resilience4j_circuitbreaker_state{state="open"} == 1,
+            "target", "$1", "name", "(.+)"
+          )
         for: 1m
         labels:
           severity: critical
@@ -186,7 +255,10 @@ groups:
           description: "O gateway abriu o circuit breaker para o serviço {{ $labels.target }}."
 
       - alert: HighRejectedRequests
-        expr: rate(http_requests_rejected_total[5m]) > 50
+        expr: |
+          rate(http_requests_rejected_total{service=~"patient-clinical-service|patient-service|clinical-service"}[5m]) > 50
+          or
+          rate(http_requests_rejected_total[5m]) > 50
         for: 5m
         labels:
           severity: warning
@@ -195,7 +267,12 @@ groups:
           description: "O serviço {{ $labels.service }} rejeitou {{ $value }} requisições/min (rate limit / auth)."
 
       - alert: PrescriptionGenerationFailing
-        expr: rate(reports_errors_total{report_type="PRESCRIPTIONS"}[5m]) > 2
+        expr: |
+          rate(reports_errors_total{report_type="PRESCRIPTIONS"}[5m]) > 2
+          or
+          rate(prescriptions_errors_total{service=~"patient-clinical-service|clinical-service"}[5m]) > 2
+          or
+          rate(prescription_pdf_generation_errors_total{service=~"patient-clinical-service|clinical-service"}[5m]) > 2
         for: 5m
         labels:
           severity: warning

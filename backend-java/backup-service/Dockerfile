@@ -20,7 +20,7 @@ FROM eclipse-temurin:21-jre-alpine AS runtime
 
 # Instala ferramentas nativas de dump e utilitários essenciais
 RUN apk add --no-cache \
-        postgresql15-client \
+        postgresql-client \
         mongodb-tools \
         bash \
         tzdata \

@@ -229,7 +229,10 @@ export function PatientDetailPage() {
   const [prescriptionModal, setPrescriptionModal] = useState<{ open: boolean; recordId: string | null }>({ open: false, recordId: null })
   const [certificateModal, setCertificateModal] = useState<{ open: boolean; recordId: string | null }>({ open: false, recordId: null })
   
-  const canEdit = useIsDoctor() || useIsAdmin() || useIsAttendant()
+  const isDoctor = useIsDoctor()
+  const isAdmin = useIsAdmin()
+  const isAttendant = useIsAttendant()
+  const canEdit = isDoctor || isAdmin || isAttendant
 
   const { data: patient, isLoading } = usePatient(id)
   const { data: allergies } = usePatientAllergies(id)
