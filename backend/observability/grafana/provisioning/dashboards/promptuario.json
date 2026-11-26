@@ -2836,8 +2836,8 @@
       {
         "current": {
           "selected": true,
-          "text": "Todos",
-          "value": "$__all"
+          "text": "patient-clinical-service",
+          "value": "patient-clinical-service"
         },
         "datasource": {
           "type": "prometheus",
@@ -2883,16 +2883,6 @@
             "selected": false,
             "text": "backup-service",
             "value": "backup-service"
-          },
-          {
-            "selected": false,
-            "text": "patient-service",
-            "value": "patient-service"
-          },
-          {
-            "selected": false,
-            "text": "clinical-service",
-            "value": "clinical-service"
           }
         ],
         "query": {
