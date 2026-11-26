@@ -1464,3 +1464,11 @@ Concluída a Fase O2 da migração de observabilidade. O pipeline OTLP -> Jaeger
 Concluída a Fase O3 da migração de observabilidade. O dashboard Grafana foi consolidado para o serviço unificado, os documentos arquiteturais e o Makefile foram alinhados à topologia V2 (portas 8002 e 8006) e o checklist estático foi validado. Próximo passo: Fase O4 (janela de observação de 7 dias e relatório final).
 
 ---
+
+## 2026-11-25 — Fase O4: Janela de Observação e Relatório Final de Encerramento
+
+### 📋 Implementação Proposta
+
+- Executar a **Fase O4** da migração de observabilidade: roteiro de inspeção dos 7 dias de estabilização, auditoria de cardinalidade do TSDB do Prometheus e geração do relatório final `backend/observability/OBSERVABILITY_CUTOVER_REPORT.md`.
+
+---
