@@ -31,3 +31,20 @@ A execução seguiu o plano definido em quatro fases sequenciais:
 
 ---
 
+## 2. Tabela Comparativa — Baseline (Fase O0) vs Estado Pós-Cutover (Fase O4)
+
+| Dimensão | Baseline (Fase O0 — 25/11/2026) | Pós-Cutover (Fase O4 — 26/11/2026) |
+|----------|----------------------------------|-------------------------------------|
+| Serviços monitorados | `gateway`, `iam-service`, `patient-service`, `clinical-service`, `ai-service`, `reporting-service` | `gateway`, `iam-service`, `patient-clinical-service`, `ai-service`, `reporting-service`, `backup-service` |
+| Endpoint scrape Java | `/metrics` (divergente — Java expõe `/actuator/prometheus`) | `/actuator/prometheus` alinhado para `patient-clinical-service`, `gateway`, `iam-service`, `backup-service` |
+| Filtros legados nos dashboards | Ausentes (0 ocorrências de `patient-service`/`clinical-service`) | Removidos; variável `servico` padrão = `patient-clinical-service` |
+| Regras de alerta | 24 regras, sem suporte dedicado a `patient-clinical-service` | 25 regras, com `PatientClinicalServiceDown`, suporte dual Python/Micrometer e alertas de backup |
+| SLOs formalizados | Não definidos formalmente | 5 SLIs/SLOs + Error Budget + Burn Rate com PromQL exatas |
+| Painéis SLO no Grafana | Não existiam | Error Budget (id 900) e SLO Burn Rate (id 901) adicionados |
+| Correlação de traces | Pipeline OTel → Jaeger configurado, sem validação de `correlation_id` | `correlation_id` injetado em logs JSON e como atributo de Span no Jaeger |
+| Documentação de status | Observabilidade 85% | Observabilidade CONCLUÍDO / V2 UNIFICADA (100%) |
+| Comandos Make | Sem `metrics-check`; `health` sem `backup-service` | `make health` inclui `backup-service` (8006); `make metrics-check` adicionado |
+| Coleta de métricas em runtime | Stack Docker offline; targets inacessíveis | Validação estática concluída; runtime pendente por indisponibilidade do ambiente Docker |
+
+---
+
