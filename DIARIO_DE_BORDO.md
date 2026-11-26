@@ -1418,3 +1418,49 @@ Breve parágrafo com o balanço geral do dia, decisões tomadas e próximos pass
 Concluída a Fase O2 da migração de observabilidade. O pipeline OTLP -> Jaeger foi validado estaticamente, os módulos Python de observabilidade foram enriquecidos para propagar `correlation_id`/`request_id` em logs estruturados e como atributos de Span, os SLOs/SLIs do sistema foram formalizados em `SLO_DEFINITIONS.md` com PromQL exatas, e o dashboard Grafana recebeu os painéis de "Error Budget" e "SLO Burn Rate". Próximo passo: subir a stack para validação em runtime (Fase O3/O4) e adicionar dependências OTLP aos módulos Java quando autorizado.
 
 ---
+
+
+## 2026-11-25 — Fase O3: Corte Seguro e Alinhamento Documental
+
+### 📋 Implementação Proposta
+
+- Executar a **Fase O3** da migração de observabilidade: limpeza do dashboard Grafana (`promptuario.json`), atualização dos documentos arquiteturais (`ETAPA_11`, `STATUS_GERAL_DO_SISTEMA`) e do `backend/Makefile`.
+
+---
+
+### ✅ O que foi Implementado
+
+- **Limpeza do Dashboard Grafana**:
+  - Removidas as opções legadas `patient-service` e `clinical-service` da variável de template `servico`, consolidando em `patient-clinical-service`.
+  - Definido o valor padrão da variável `servico` para `patient-clinical-service`, assegurando que o painel padrão abra apontando para o serviço unificado.
+  - JSON validado (36 painéis, IDs únicos, sem sobreposição).
+- **Documentação Arquitetural**:
+  - `DOCUMENTATION/ETAPA_11_Observabilidade_Distribuida_Prometheus_Grafana_Loki.md`: snippet de scrape atualizado para a topologia V2 (Gateway :8000, IAM :8001, Patient-Clinical :8002, AI :8004, Reporting :8005, Backup :8006), removendo `clinical-service:8003` e adicionando `backup-service:8006`.
+  - `DOCUMENTATION/STATUS_GERAL_DO_SISTEMA.md`: status da migração de observabilidade registrado como **CONCLUÍDO / V2 UNIFICADA** (100%); scrape targets atualizados para `/actuator/prometheus` nos serviços Java.
+- **Makefile**:
+  - `make health` agora inclui `backup-service` (porta 8006, `/actuator/health`).
+  - Adicionado target `make metrics-check` para verificar endpoints de métricas do `patient-clinical-service` (8002) e `backup-service` (8006), além do Gateway.
+  - `.PHONY` atualizado com `metrics-check`.
+- Nenhum commit foi realizado.
+
+---
+
+### ❌ O que deu Erro
+
+- A stack Docker permanece offline, portanto o checklist de runtime (targets UP=1, alertas, renderização do Grafana, traces no Jaeger) não pôde ser comprovado ao vivo; validação realizada por inspeção estática.
+
+---
+
+### 🟢 O que Funcionou
+
+- JSON do dashboard validado após a limpeza.
+- `git diff --check` sem erros de whitespace.
+- Documentos e Makefile atualizados conforme a topologia unificada.
+
+---
+
+### 📝 Resumo do Dia
+
+Concluída a Fase O3 da migração de observabilidade. O dashboard Grafana foi consolidado para o serviço unificado, os documentos arquiteturais e o Makefile foram alinhados à topologia V2 (portas 8002 e 8006) e o checklist estático foi validado. Próximo passo: Fase O4 (janela de observação de 7 dias e relatório final).
+
+---
