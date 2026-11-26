@@ -1485,3 +1485,13 @@ Concluída a Fase O3 da migração de observabilidade. O dashboard Grafana foi c
   8. Conclusão e aprovação técnica.
 
 ---
+### ❌ O que deu Erro
+
+- A stack Docker do PROMPTUÁRIO permanece offline no ambiente (`localhost:9090`, `4318`, `16686` inacessíveis), portanto não foi possível comprovar em runtime:
+  * Targets do Prometheus em `UP = 1`.
+  * Ausência de alertas disparados indevidamente em `http://localhost:9090/alerts`.
+  * Renderização dos dashboards Grafana (latência, vazão, erros, métricas de negócio).
+  * Traces no Jaeger integrados com o OTel Collector.
+- Valores reais de conformidade dos SLOs não puderam ser capturados; os SLOs estão formalmente definidos e os painéis configurados para medição futura.
+
+---
