@@ -527,6 +527,12 @@ export function RecordsPage() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
 
+  // These queries stay unconditional so the hook order is stable for both routes.
+  const { data: myPatient, isLoading: loadingMyPatient } = useMyPatient()
+  const pid = patientId || (isPatient ? (myPatient?.id || user?.id) : '')
+  const { data: recordsByPatient, isLoading: loadingPatient } = usePatientRecords(pid || '')
+  const { data: allRecords, isLoading: loadingAll } = useRecords()
+
   // If viewing a specific record
   if (recordId) {
     return (
@@ -548,16 +554,8 @@ export function RecordsPage() {
     )
   }
 
-  // Para pacientes, buscamos o True Patient ID usando patientsApi.me() no frontend
-  const { data: myPatient, isLoading: loadingMyPatient } = useMyPatient()
-
   // Se o paciente estiver vendo a lista, usamos o True Patient ID dele. Se for médico vendo um paciente, usamos o param.
   // WORKAROUND: Se o myPatient falhar (ex: 404 porque o seed não criou o patient_db corretamente), fazemos fallback pro user.id
-  const pid = patientId || (isPatient ? (myPatient?.id || user?.id) : '')
-  
-  const { data: recordsByPatient, isLoading: loadingPatient } = usePatientRecords(pid || '')
-  const { data: allRecords, isLoading: loadingAll } = useRecords()
-
   const records = pid ? recordsByPatient : allRecords
   // Se for paciente e ainda estiver carregando o myPatient, forçamos isLoading = true para não dar flicker de "Nenhum prontuário"
   const isLoading = (isPatient && loadingMyPatient) ? true : (pid ? loadingPatient : loadingAll)
