@@ -15,7 +15,7 @@
 | **Modelos de Dados** | ✅ 95% | Schemas definidos e persistidos |
 | **Integração de Eventos** | ✅ 90% | RabbitMQ, publicadores, consumidores, DLX |
 | **Autenticação/Autorização** | ✅ 100% | JWT, RBAC, refresh tokens, OAuth2 Google, 2FA |
-| **Observabilidade** | ✅ 85% | Prometheus, Grafana, Jaeger, OTEL Collector, Loki, Alertmanager |
+| **Observabilidade** | ✅ 100% (V2 UNIFICADA) | Prometheus, Grafana, Jaeger, OTEL Collector, Loki, Alertmanager — migração concluída |
 | **CI/CD Pipeline** | ✅ 100% | GitHub Actions: lint, testes, build Docker, deploy |
 | **Frontend** | ✅ 95% | React 18 + TypeScript + Tailwind, 15+ páginas |
 | **Testes Unitários** | 🟡 50% | Smoke tests OK + unit tests em progresso |
@@ -576,6 +576,8 @@ PROD_API_URL — URL da API para build do frontend
 
 ## 📊 OBSERVABILIDADE
 
+> Status da migração de observabilidade: **CONCLUÍDO / V2 UNIFICADA** (Fase O3).
+
 ### Stack Implementada ✅
 
 | Componente | Status | Descrição |
@@ -602,10 +604,11 @@ cache_misses_total (counter) — service, route
 circuit_open_total (counter) — service, target
 ```
 
-### Scrape Targets
+### Scrape Targets (V2 Unificada)
 ```
-gateway:8000/metrics, iam-service:8000/metrics, patient-service:8000/metrics,
-clinical-service:8000/metrics, ai-service:8000/metrics, reporting-service:8000/metrics
+gateway:8000/actuator/prometheus, iam-service:8000/actuator/prometheus,
+patient-clinical-service:8000/actuator/prometheus, ai-service:8000/metrics,
+reporting-service:8000/metrics, backup-service:8000/actuator/prometheus,
 rabbitmq:15692/metrics (built-in via management plugin)
 ```
 
