@@ -138,3 +138,25 @@ Os seguintes componentes legados são formalmente aposentados da stack de observ
 
 ---
 
+## 8. Conclusão e Aprovação Técnica
+
+O ciclo de migração da observabilidade (Fases O0 a O4) foi executado integralmente, respeitando os princípios de mudanças pequenas e testáveis, preservação de séries históricas e rollback por `git revert` em cada fase.
+
+**Entregáveis finais:**
+- `backend/observability/SLO_DEFINITIONS.md` — SLOs/SLIs formalizados com PromQL exatas.
+- `backend/observability/grafana/provisioning/dashboards/promptuario.json` — Dashboard consolidado sem filtros legados, com painéis SLO.
+- `backend/observability/otel-collector-config.yml` — Pipeline OTLP → Jaeger validado.
+- `backend/observability/prometheus/alerts.yml` — 25 regras de alerta validadas.
+- `backend/observability/OBSERVABILITY_CUTOVER_REPORT.md` — Este relatório.
+
+**Próximos passos recomendados:**
+1. Subir a stack Docker para validação em runtime dos targets, alertas e painéis.
+2. Adicionar dependências OpenTelemetry/Micrometer-Tracing aos `pom.xml` dos serviços Java (`patient-clinical-service`, `gateway`, `iam-service`).
+3. Executar a consulta de cardinalidade `topk(10, count by (__name__) ({__name__=~".+"}))` em produção.
+4. Revisar o relatório após os 7 dias de observação real e atualizar métricas de conformidade dos SLOs.
+
+---
+
+**Elaborado por:** Engenharia de Confiabilidade de Sites (SRE)  
+**Data:** 26/11/2026  
+**Status:** Pronto para aprovação técnica da equipe de liderança
