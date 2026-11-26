@@ -123,3 +123,18 @@ Durante a janela de observação (7 dias), não houve registros de incidentes em
 
 ---
 
+## 7. Declaração Formal de Aposentadoria de Componentes Legados
+
+Os seguintes componentes legados são formalmente aposentados da stack de observabilidade ativa:
+
+| Componente Legado | Destino | Motivo |
+|-------------------|---------|--------|
+| `patient-service` | Aposentado (retired) | Substituído por `patient-clinical-service` |
+| `clinical-service` | Aposentado (retired) | Substituído por `patient-clinical-service` |
+| Filtros `job="patient-service"` / `job="clinical-service"` | Removidos dos dashboards | Consolidados em `patient-clinical-service` |
+| Métricas históricas no TSDB (`patient-service`, `clinical-service`) | **Preservadas** | Não há exclusão de séries do Prometheus, conforme princípio de não destruição de dados históricos |
+
+**Declaração:** A migração da observabilidade está encerrada com sucesso. A topologia unificada V2 (`patient-clinical-service`, `gateway`, `iam-service`, `ai-service`, `reporting-service`, `backup-service`) é o padrão oficial de monitoramento. As séries históricas legadas permanecem no TSDB para consulta retrospectiva e auditoria, sem impacto no runtime da V2.
+
+---
+
