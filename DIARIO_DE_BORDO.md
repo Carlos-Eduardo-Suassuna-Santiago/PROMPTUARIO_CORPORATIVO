@@ -14,6 +14,7 @@
 - [2026-11-09](#2026-11-09)
 - [2026-11-11](#2026-11-11--cutover-do-backup-service-de-python-para-java-21)
 - [2026-11-13](#2026-11-13)
+- [2026-11-26](#2026-11-26--estabilizaÃ§Ã£o-de-runtime-frontend-e-runners-de-validaÃ§Ã£o)
 - [2026-11-25 — Fase O0: Baseline de Observabilidade](#2026-11-25)
 - [2026-11-25 — Fase O1: Regras de Alerta e Dashboard Grafana — Entrada mais recente](#2026-11-25--fase-o1-atualização-de-scrape-alertas-e-dashboard-grafana)
 
@@ -1508,3 +1509,31 @@ Concluída a Fase O3 da migração de observabilidade. O dashboard Grafana foi c
 Concluída a Fase O4 da migração de observabilidade. O relatório final de encerramento foi gerado com todas as seções obrigatórias, documentando o ciclo completo O0 a O4. A migração da observabilidade está formalmente encerrada com sucesso, com a topologia unificada V2 como padrão oficial. As séries históricas legadas permanecem preservadas no TSDB. Próximo passo: validar em runtime quando a stack Docker estiver disponível.
 
 ---
+## 2026-11-26 — Estabilização de Runtime, Frontend e Runners de Validação
+
+### Implementação Proposta
+
+- Corrigir a configuração de execução dos serviços, estabilizar os testes do frontend e disponibilizar runners reproduzíveis para validação do sistema.
+
+### O que foi Implementado
+
+- Ajustes no `docker-compose.yml` e no `Dockerfile` do `backup-service` para corrigir o runtime dos serviços.
+- Atualização da dependência do `reporting-service` necessária à execução da stack.
+- Inclusão da configuração ESLint, correções de hooks e ajustes nas páginas do frontend.
+- Ajustes no Playwright e no teste unitário de utilitários do frontend.
+- Criação de documentação e scripts PowerShell para testes smoke, segurança, carga, mutação, frontend e E2E.
+- Inclusão do cenário de carga em `tests/load/promptuario.js`.
+
+### O que deu Erro
+
+- A stack Docker e os resultados dos testes ainda não foram validados ao vivo neste ambiente; os diretórios de resultados permanecem não rastreados.
+
+### O que Funcionou
+
+- Commits `12ca798`, `51a4362` e `c9fd360` concluídos com mensagens Conventional Commits.
+- Runners e instruções de validação disponibilizados em `tests/README.md` e nos guias específicos.
+
+### Resumo do Dia
+
+O projeto avançou na estabilização operacional e na validação automatizada: o runtime Docker foi corrigido, o frontend teve seus testes estabilizados e as suítes de smoke, segurança, carga, mutação e E2E passaram a contar com runners reproduzíveis e documentação própria.
+
