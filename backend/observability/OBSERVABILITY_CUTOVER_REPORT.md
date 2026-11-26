@@ -88,3 +88,25 @@ Durante a janela de observação, os seguintes alertas prioritários devem ser a
 
 ---
 
+## 5. Auditoria de Cardinalidade e Performance do TSDB do Prometheus
+
+### 5.1 Consulta de Cardinalidade
+
+A seguinte consulta PromQL deve ser executada para identificar métricas com excesso de labels/séries:
+
+```promql
+topk(10, count by (__name__) ({__name__=~".+"}))
+```
+
+**Objetivo:** Detectar séries com alta cardinalidade que possam pressionar o armazenamento do Prometheus (TSDB), especialmente labels como `endpoint`, `uri` ou `queue` com valores de alta variedade.
+
+### 5.2 Memória do Container do Prometheus
+
+A memória do container `prometheus` deve ser monitorada para garantir estabilidade sem picos de OOM (Out Of Memory). Recomenda-se:
+
+- Definir limites de memória adequados no `docker-compose.yml`.
+- Acompanhar `container_memory_usage_bytes` e `container_memory_max_usage_bytes` via cAdvisor/node-exporter.
+- Evitar labels de alta cardinalidade em métricas customizadas (`http_requests_total`, `http_server_requests_seconds_count`).
+
+---
+
