@@ -64,3 +64,27 @@ A execução seguiu o plano definido em quatro fases sequenciais:
 
 ---
 
+## 4. Roteiro de Inspeção dos 7 Dias de Estabilização
+
+Durante a janela de observação, os seguintes alertas prioritários devem ser acompanhados diariamente:
+
+| Alerta | Expressão | Critério de Aceite | Severidade |
+|--------|-----------|-------------------|------------|
+| ServiceDown | `up == 0` | Zero downtime dos microsserviços críticos | critical |
+| PatientClinicalServiceDown | `up{job="patient-clinical-service"} == 0 or absent(...)` | Serviço unificado sempre UP | critical |
+| HighErrorRate | Taxa de erro 5xx > 5% / 5m | Mantida abaixo de 1% (meta de SLO mais rígida) | warning |
+| HighLatency | P95 > 2s / 5m | P95 mantido abaixo de 2s sob carga | warning |
+| QueueDepthIncreasing | `rabbitmq_queue_messages_ready > 1000` | Filas esvaziando sem retenção > 5 min | warning |
+| LoginFailuresSpike | `rate(login_attempts_total{status="failure"}[5m]) > 10` | Detecção de força bruta no IAM | warning |
+| AiErrorsSpike | `rate(ai_errors_total[5m]) > 5` | Taxa de erro do LLM controlada | warning |
+| CircuitBreakerOpen | `gateway_circuit_state > 0` ou `resilience4j_circuitbreaker_state{state="open"} == 1` | Estado Closed para serviços saudáveis | critical |
+| BackupMissing24h | `(time() - backup_last_success_timestamp_seconds) > 86400` | RPO cumprido (backup a cada 24h) | warning |
+
+**Rotina diária recomendada:**
+1. Verificar `http://localhost:9090/alerts` para disparos indevidos.
+2. Confirmar todos os targets em `UP = 1` via `/api/v1/targets`.
+3. Validar renderização dos painéis de latência, vazão, erros e métricas de negócio no Grafana.
+4. Confirmar traces no Jaeger integrados com o OTel Collector (`service.name=patient-clinical-service`).
+
+---
+
