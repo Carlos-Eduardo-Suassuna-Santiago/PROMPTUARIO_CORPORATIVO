@@ -116,6 +116,12 @@ health: ## Check health of all services
 	@echo "Patient-Clinical: " && curl -sf http://localhost:8002/healthz | python3 -m json.tool
 	@echo "AI:       " && curl -sf http://localhost:8004/healthz | python3 -m json.tool
 	@echo "Reporting:" && curl -sf http://localhost:8005/healthz | python3 -m json.tool
+	@echo "Backup:    " && curl -sf http://localhost:8006/actuator/health | python3 -m json.tool
+
+metrics-check: ## Check Prometheus metrics endpoints of unified and backup services
+	@echo "Patient-Clinical (8002):" && curl -sf http://localhost:8002/actuator/prometheus | head -5
+	@echo "Backup (8006):" && curl -sf http://localhost:8006/actuator/prometheus | head -5
+	@echo "Gateway (8000):" && curl -sf http://localhost:8000/metrics | head -5
 
 login: ## Quick login test (returns JWT)
 	@curl -s -X POST http://localhost:8000/api/v1/auth/login \
