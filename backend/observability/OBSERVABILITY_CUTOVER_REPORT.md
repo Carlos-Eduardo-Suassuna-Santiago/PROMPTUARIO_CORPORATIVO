@@ -48,3 +48,19 @@ A execução seguiu o plano definido em quatro fases sequenciais:
 
 ---
 
+## 3. Cumprimento de SLOs
+
+| SLI | SLO (Meta) | PromQL | Status Pós-Cutover |
+|-----|------------|--------|-------------------|
+| Disponibilidade | ≥ 99.5% não-5xx em janela 30d | `sum(rate(http_requests_total{status_code!~"5.."}[30d])) / sum(rate(http_requests_total[30d])) * 100` | Meta formalmente definida; medição em runtime pendente |
+| Latência P95 | < 2.000ms (95% das requisições) | `histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{service="patient-clinical-service"}[5m])) by (le))` | Meta formalmente definida |
+| Integridade de Auditoria | `rate(audit_events_failed_total[1h]) == 0` (100% sem falha) | `rate(audit_events_failed_total[1h]) == 0` | Regra `AuditEventsFailing` ativa |
+| Saúde de Filas RabbitMQ | `< 1000` mensagens prontas por > 5 min | `rabbitmq_queue_messages_ready < 1000` | Regra `QueueDepthIncreasing` ativa |
+| Circuit Breaker | Estado == 0 (Closed) para todos os serviços saudáveis | `gateway_circuit_state == 0` | Regra `CircuitBreakerOpen` ativa |
+| Error Budget | Remanescente ≥ 0% (budget de 0,5% de erro) | `(0.005 - (sum(rate(http_requests_total{status_code=~"5.."}[5m])) / sum(rate(http_requests_total[5m])))) / 0.005 * 100` | Painel id 900 no Grafana |
+| SLO Burn Rate | ≤ 1 (consumo dentro do esperado) | `(sum(rate(http_requests_total{status_code=~"5.."}[5m])) / sum(rate(http_requests_total[5m]))) / 0.005` | Painel id 901 no Grafana |
+
+> **Nota:** Como a stack Docker não esteve em execução durante a janela de observação neste ambiente, os valores reais de conformidade dos SLOs não puderam ser capturados em runtime. Os SLOs estão formalmente definidos e os painéis/configurados para medição assim que a stack for iniciada.
+
+---
+
