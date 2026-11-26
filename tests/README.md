@@ -61,3 +61,41 @@ pytest -q --cov=. --cov-report=term-missing
 ```
 
 O runner executa `tests/python` em uma única sessão pytest para consolidar a cobertura.
+## Runner central Frontend
+
+O frontend usa React 18, TypeScript, Vite, Vitest, Testing Library, ESLint e Playwright.
+
+```powershell
+.\tests\run-tests.ps1 -Suite frontend -Mode unit
+.\tests\run-tests.ps1 -Suite frontend -Mode verify
+```
+
+O modo `verify` executa `type-check`, `lint`, Vitest e `build`. Para E2E:
+
+```powershell
+Set-Location backend-java
+docker compose up -d --build
+Set-Location ..
+docker compose -f frontend/docker-compose.yml up -d --build
+.\tests\run-tests.ps1 -Suite frontend -Mode integration
+```
+
+Os testes Playwright usam o frontend e a API iniciados pelo Compose. Falhas de backend, autenticação ou rotas ausentes não devem ser tratadas como sucesso.
+
+O roteiro E2E prioritário está documentado em [`README-E2E.md`](README-E2E.md), cobrindo autenticação, perfil, agendamento com RBAC, prontuário SOAP, documentos PDF, análise de IA e auditoria.
+
+Os testes de segurança estão documentados em [`README-SECURITY.md`](README-SECURITY.md) e podem ser executados pela switch com `-Suite security`.
+
+Os testes de carga e resiliência estão documentados em [`README-LOAD.md`](README-LOAD.md) e podem ser executados pela switch com `-Suite load`.
+
+Os testes de mutação e os critérios de aceite estão documentados em [`README-MUTATION.md`](README-MUTATION.md) e podem ser executados pela switch com `-Suite mutation`.
+
+## Smoke tests operacionais
+
+Com o Compose Java iniciado em `backend-java`, execute:
+
+```powershell
+.\tests\run-tests.ps1 -Suite smoke
+```
+
+O runner valida serviços Compose, `healthz`, `healthz/services`, `actuator/health`, os serviços PostgreSQL, portas de RabbitMQ/Redis/MinIO e a liveness do MinIO. Prometheus, Grafana e Jaeger são reportados separadamente como telemetria; falhas funcionais continuam determinando o resultado da suíte.
