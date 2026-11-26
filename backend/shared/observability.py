@@ -36,6 +36,17 @@ def clear_request_context() -> None:
     _context_storage.set({})
 
 
+class _RequestContextLogFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            ctx = get_request_context()
+        except Exception:
+            ctx = {}
+        record.correlation_id = ctx.get("correlation_id", "")
+        record.request_id = ctx.get("request_id", "")
+        return True
+
+
 def register_resilience_metrics(app: FastAPI, service_name: str) -> dict[str, Any]:
     cache_hits_total = Counter(
         "gateway_cache_hits_total",
@@ -81,6 +92,7 @@ def setup_observability(app: FastAPI, service_name: str, log_level: str = "INFO"
         root_logger = logging.getLogger()
         root_logger.handlers.clear()
         root_logger.addHandler(handler)
+        handler.addFilter(_RequestContextLogFilter())
         root_logger.setLevel(getattr(logging, log_level))
 
         resource = Resource.create({"service.name": service_name})
@@ -176,6 +188,15 @@ def setup_observability(app: FastAPI, service_name: str, log_level: str = "INFO"
             request.state.request_id = request_id
             request.state.correlation_id = correlation_id
             request.state.ip_address = ip_address
+            try:
+                _span = trace.get_current_span()
+                if _span is not None and getattr(_span, "is_recording", lambda: False)():
+                    _span.set_attribute("correlation_id", correlation_id)
+                    _span.set_attribute("request_id", request_id)
+                    if user_id:
+                        _span.set_attribute("user_id", user_id)
+            except Exception:
+                pass
             response = await call_next(request)
             response.headers["X-Request-Id"] = request_id
             response.headers["X-Correlation-Id"] = correlation_id
