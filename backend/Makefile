@@ -144,7 +144,9 @@ restore-db: ## Restore PostgreSQL from a local backup file. Usage: make restore-
 restore-mongo: ## Restore MongoDB from a local backup archive. Usage: make restore-mongo FILE=path/to/file.archive.gz TARGET=ai_db (Java)
 	$(COMPOSE) run --rm backup-service java -jar app.jar --restore --kind mongo --target $(TARGET) --file $(FILE)
 
-status: ## Show the latest backup status report
+status: ## Show the latest backup status report and health of unified services
+	@echo "Patient-Clinical (8002):" && curl -sf http://localhost:8002/actuator/health | python3 -m json.tool 2>/dev/null || echo "  (indisponível)"
+	@echo "Backup (8006):" && curl -sf http://localhost:8006/actuator/health | python3 -m json.tool 2>/dev/null || echo "  (indisponível)"
 	@$(COMPOSE) exec -T backup-service sh -lc 'cat /var/backups/status.json 2>/dev/null || echo "Nenhum status disponível"'
 
 clean: ## Remove containers, volumes, and built images
