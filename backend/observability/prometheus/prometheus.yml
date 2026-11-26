@@ -67,3 +67,10 @@ scrape_configs:
   - job_name: node-exporter
     static_configs:
       - targets: ["node-exporter:9100"]
+
+  # ─── Política de Preservação de Séries Históricas ─────────────────────────
+  # PRINCÍPIO: Nunca renomear métricas já coletadas nem expurgar séries do TSDB.
+  # Séries legadas emitidas com service="patient-service" ou service="clinical-service"
+  # permanecem preservadas no Prometheus TSDB para consulta retrospectiva e auditoria.
+  # A migração para patient-clinical-service adiciona novas séries sem remover as antigas.
+  # Rollback de qualquer fase é feito via `git revert` — nenhuma série é deletada do disco.
