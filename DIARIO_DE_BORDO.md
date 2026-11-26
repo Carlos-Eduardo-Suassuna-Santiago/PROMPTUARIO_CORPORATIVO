@@ -1472,3 +1472,16 @@ Concluída a Fase O3 da migração de observabilidade. O dashboard Grafana foi c
 - Executar a **Fase O4** da migração de observabilidade: roteiro de inspeção dos 7 dias de estabilização, auditoria de cardinalidade do TSDB do Prometheus e geração do relatório final `backend/observability/OBSERVABILITY_CUTOVER_REPORT.md`.
 
 ---
+### ✅ O que foi Implementado
+
+- **Relatório Final de Encerramento**: criado `backend/observability/OBSERVABILITY_CUTOVER_REPORT.md` com:
+  1. Resumo Executivo da Migração da Observabilidade (fases O0 a O4).
+  2. Tabela comparativa Baseline (Fase O0) vs Estado Pós-Cutover (Fase O4).
+  3. Cumprimento de SLOs (Disponibilidade 99.5%/30d, Latência P95 < 2s, Auditoria 100%, Filas RabbitMQ < 1000/5min, Circuit Breaker == 0 Closed, Error Budget e Burn Rate).
+  4. Roteiro de Inspeção dos 7 Dias com 8 alertas prioritários (ServiceDown, HighErrorRate, HighLatency, QueueDepthIncreasing, LoginFailuresSpike, AiErrorsSpike, CircuitBreakerOpen, BackupMissing24h).
+  5. Auditoria de Cardinalidade e Performance do TSDB (consulta `topk` e memória do container Prometheus).
+  6. Histórico de incidentes e alertas disparados.
+  7. Declaração formal de aposentadoria de componentes legados (`patient-service`, `clinical-service`).
+  8. Conclusão e aprovação técnica.
+
+---
