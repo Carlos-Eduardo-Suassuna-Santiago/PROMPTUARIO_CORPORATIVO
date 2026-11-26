@@ -164,8 +164,10 @@ services:
       SPRING_RABBITMQ_USERNAME: promptuario
       SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-promptuario_pass}
       APP_STORAGE_S3_ENDPOINT: http://minio:9000
-      APP_STORAGE_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
-      APP_STORAGE_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      APP_STORAGE_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-promptuario}
+      APP_STORAGE_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-promptuario_pass}
+      APP_STORAGE_S3_BUCKET_PATIENT_DOCUMENTS: patient-documents
+      APP_STORAGE_S3_BUCKET_PRESCRIPTIONS: prescriptions
       APP_SECURITY_JWT_SECRET: ${JWT_SECRET_KEY:-super-secret-change-in-production-32chars}
       SERVER_PORT: 8000
       SERVICE_NAME: patient-clinical-service
@@ -231,17 +233,25 @@ services:
       RABBITMQ_URL: amqp://promptuario:${RABBITMQ_PASSWORD:-promptuario_pass}@rabbitmq:5672/
       S3_ENDPOINT: http://minio:9000
       S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
-      S3_ACCESS_KEY: promptuario
-      S3_SECRET_KEY: promptuario_pass
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-promptuario}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-promptuario_pass}
       S3_BUCKET_REPORTS: reports
       SERVICE_NAME: reporting-service
       LOG_LEVEL: INFO
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-super-secret-change-in-production-32chars}
       JWT_ALGORITHM: HS256
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
-      IAM_DB_URL: postgresql://iam:iam_pass@db-iam:5432/iam_db
-      PATIENT_DB_URL: postgresql://clinical:clinical_pass@db-patient-clinical:5432/patient_clinical_db
-      CLINICAL_DB_URL: postgresql://clinical:clinical_pass@db-patient-clinical:5432/patient_clinical_db
+      IAM_DB_URL: postgresql://iam:${DB_IAM_PASSWORD:-iam_pass}@db-iam:5432/iam_db
+      PATIENT_DB_URL: postgresql://clinical:${DB_CLINICAL_PASSWORD:-clinical_pass}@db-patient-clinical:5432/patient_clinical_db
+      CLINICAL_DB_URL: postgresql://clinical:${DB_CLINICAL_PASSWORD:-clinical_pass}@db-patient-clinical:5432/patient_clinical_db
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)" ]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+    ports:
+      - "8005:8000"
     depends_on:
       db-reporting:
         condition: service_healthy
@@ -265,8 +275,8 @@ services:
       RABBITMQ_URL: amqp://promptuario:${RABBITMQ_PASSWORD:-promptuario_pass}@rabbitmq:5672/
       S3_ENDPOINT: http://minio:9000
       S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
-      S3_ACCESS_KEY: promptuario
-      S3_SECRET_KEY: promptuario_pass
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-promptuario}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-promptuario_pass}
       S3_BUCKET_REPORTS: reports
       WEBHOOK_SIGNING_SECRET: reporting-webhook-secret-change-me
     depends_on:
@@ -358,8 +368,8 @@ services:
   prometheus:
     image: prom/prometheus:v2.54.1
     volumes:
-      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./observability/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ../backend/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../backend/observability/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
       - prometheus_data:/prometheus
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
@@ -388,7 +398,7 @@ services:
   grafana:
     image: grafana/grafana:11.2.2
     volumes:
-      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../backend/observability/grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana_data:/var/lib/grafana
     environment:
       GF_SECURITY_ADMIN_USER: admin
@@ -414,7 +424,7 @@ services:
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.105.0
     volumes:
-      - ./observability/otel-collector-config.yml:/etc/otelcol-contrib/config.yaml:ro
+      - ../backend/observability/otel-collector-config.yml:/etc/otelcol-contrib/config.yaml:ro
     ports:
       - "4317:4317"
       - "4318:4318"
@@ -434,20 +444,25 @@ services:
   # Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ BACKUP SERVICE Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   backup-service:
     build:
-      context: .
-      dockerfile: backup/Dockerfile
+      context: ./backup-service
+      dockerfile: Dockerfile
     environment:
       MONGO_HOST: db-ai
       MONGO_USER: ai
-      MONGO_PASS: ai_pass
+      MONGO_PASS: ${DB_AI_PASSWORD:-ai_pass}
       MONGO_DB: ai_db
       MINIO_ENDPOINT: http://minio:9000
-      MINIO_ACCESS_KEY: promptuario
-      MINIO_SECRET_KEY: promptuario_pass
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-promptuario}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-promptuario_pass}
       MINIO_BACKUP_BUCKET: backups
       BACKUP_RETENTION_DAYS: "7"
       BACKUP_SCHEDULE_HOURS: "24"
       BACKUP_ROOT_DIR: /var/backups
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-super-secret-change-in-production-32chars}
+    volumes:
+      - backup_data:/var/backups
+    ports:
+      - "8006:8000"
     depends_on:
       db-iam:
         condition: service_healthy

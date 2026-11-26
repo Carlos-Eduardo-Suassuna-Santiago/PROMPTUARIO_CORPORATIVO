@@ -10,7 +10,7 @@ python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
 celery==5.4.0
-redis[asyncio]==5.2.0
+redis[asyncio]==6.1.0
 aio-pika==9.4.3
 boto3==1.35.0
 pydyf==0.10.0
