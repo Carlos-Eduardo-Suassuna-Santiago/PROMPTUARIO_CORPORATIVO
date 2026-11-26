@@ -110,3 +110,16 @@ A memória do container `prometheus` deve ser monitorada para garantir estabilid
 
 ---
 
+## 6. Histórico de Incidentes e Alertas Disparados
+
+Durante a janela de observação (7 dias), não houve registros de incidentes em runtime devido à indisponibilidade da stack Docker no ambiente de validação. Todas as validações foram realizadas por inspeção estática de código, configuração e documentos.
+
+| Item | Status | Observação |
+|------|--------|------------|
+| Alertas disparados indevidamente | 0 | Validação estática; sem runtime |
+| Incidentes de disponibilidade | 0 | Stack offline durante a janela |
+| Ações corretivas adotadas | N/A | Nenhum incidente registrado |
+| Ajustes preventivos | Regras `alerts.yml` corrigidas em O1 (divisão vetorial `HighErrorRate`, suporte Micrometer) | Realizado na Fase O1 |
+
+---
+
