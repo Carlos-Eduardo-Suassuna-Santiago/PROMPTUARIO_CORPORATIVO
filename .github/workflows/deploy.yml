@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'backend-java/**'
+      - '.github/workflows/deploy.yml'
 
 jobs:
   deploy-backend:
@@ -15,11 +18,14 @@ jobs:
           host: ${{ secrets.SERVER_HOST_BACKEND }}
           username: ${{ secrets.SERVER_USER_BACKEND }}
           key: ${{ secrets.SERVER_SSH_KEY_BACKEND }}
+          command_timeout: 30m
           script: |
             # Entra na pasta do projeto e atualiza o código
             cd PROMPTUARIO_CORPORATIVO
-            git pull origin main
+            set -euo pipefail
+            git pull --ff-only origin main
             
-            # Entra na pasta do backend e reconstrói as imagens
-            cd backend
+            # Entra na pasta do backend Java e reconstrói as imagens
+            cd backend-java
+            docker compose config --quiet
             docker compose up --build -d
