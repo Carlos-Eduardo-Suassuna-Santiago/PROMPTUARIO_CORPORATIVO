@@ -234,6 +234,8 @@ services:
       DB_REPORTING_NAME: reporting_db
       DB_REPORTING_USER: reporting
       DB_REPORTING_PASSWORD: ${DB_REPORTING_PASSWORD:-reporting_pass}
+      # The existing reporting volume may predate Flyway's history table.
+      SPRING_FLYWAY_BASELINE_ON_MIGRATE: "true"
       SERVICE_NAME: reporting-service
       DATABASE_URL: postgresql+asyncpg://reporting:${DB_REPORTING_PASSWORD:-reporting_pass}@db-reporting:5432/reporting_db
       RABBITMQ_URL: amqp://promptuario:${RABBITMQ_PASSWORD:-promptuario_pass}@rabbitmq:5672/
