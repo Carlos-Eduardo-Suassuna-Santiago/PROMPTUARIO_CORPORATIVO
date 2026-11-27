@@ -63,6 +63,9 @@ promptuario:
       password: "${MONGO_PASS:ai_pass}"
 
 app:
+  security:
+    jwt:
+      secret: "${JWT_SECRET_KEY:change-me-in-production-super-secret-key-min-32-chars}"
   storage:
     s3:
       endpoint: "${MINIO_ENDPOINT:http://minio:9000}"
