@@ -143,11 +143,11 @@ Os seguintes componentes legados são formalmente aposentados da stack de observ
 O ciclo de migração da observabilidade (Fases O0 a O4) foi executado integralmente, respeitando os princípios de mudanças pequenas e testáveis, preservação de séries históricas e rollback por `git revert` em cada fase.
 
 **Entregáveis finais:**
-- `backend/observability/SLO_DEFINITIONS.md` — SLOs/SLIs formalizados com PromQL exatas.
-- `backend/observability/grafana/provisioning/dashboards/promptuario.json` — Dashboard consolidado sem filtros legados, com painéis SLO.
-- `backend/observability/otel-collector-config.yml` — Pipeline OTLP → Jaeger validado.
-- `backend/observability/prometheus/alerts.yml` — 25 regras de alerta validadas.
-- `backend/observability/OBSERVABILITY_CUTOVER_REPORT.md` — Este relatório.
+- `backend-java/observability/SLO_DEFINITIONS.md` — SLOs/SLIs formalizados com PromQL exatas.
+- `backend-java/observability/grafana/provisioning/dashboards/promptuario.json` — Dashboard consolidado sem filtros legados, com painéis SLO.
+- `backend-java/observability/otel-collector-config.yml` — Pipeline OTLP → Jaeger validado.
+- `backend-java/observability/prometheus/alerts.yml` — 25 regras de alerta validadas.
+- `backend-java/observability/OBSERVABILITY_CUTOVER_REPORT.md` — Este relatório.
 
 **Próximos passos recomendados:**
 1. Subir a stack Docker para validação em runtime dos targets, alertas e painéis.

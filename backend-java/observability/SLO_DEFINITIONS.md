@@ -108,7 +108,7 @@ Burn rate = taxa de erro observada / taxa de erro permitida. Valor > 1 indica co
 
 ## 9. Trecho de Configuração do Grafana (Painéis de SLO)
 
-Adicionar ao dashboard `backend/observability/grafana/provisioning/dashboards/promptuario.json`
+Adicionar ao dashboard `backend-java/observability/grafana/provisioning/dashboards/promptuario.json`
 na linha (row) `💡 SLO / SLI Tracking` os painéis abaixo.
 
 ### 9.1 Painel "Error Budget" (stat)

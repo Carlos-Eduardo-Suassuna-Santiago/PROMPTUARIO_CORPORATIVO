@@ -13,7 +13,7 @@ A validação sintática das configurações do Prometheus (`prometheus.yml`) e 
 Entretanto, durante esta auditoria foram identificadas **duas condições críticas de ambiente e arquitetura** que impedem a coleta de telemetria em runtime neste momento e exigem ação na **Fase O1**:
 
 1. **Stack Docker do PROMPTUÁRIO offline no host:** nenhum container da aplicação ou observabilidade (`prometheus`, `grafana`, `otel-collector`, `jaeger`, `gateway`, `iam-service`, `patient-clinical-service`, `ai-service`, `reporting-service`, `backup-service`, `rabbitmq`) estava em execução durante a auditoria (`http://localhost:9090`, `4318` e `16686` inacessíveis). As métricas de baseline em runtime não puderam ser coletadas.
-2. **Desalinhamento de endpoints e nomes de métricas pós-migração Java:** os serviços `gateway`, `iam-service` e `patient-clinical-service` em `backend/docker-compose.yml` já apontam para os módulos Java 21 / Spring Boot 3.3.4 (`backend-java/*`), que expõem métricas Micrometer em `/actuator/prometheus` (padrão `http_server_requests_seconds_*`), enquanto `prometheus.yml` ainda configura `metrics_path: /metrics` para esses três jobs e os painéis/alertas ainda consultam as métricas Prometheus do stack Python (`http_requests_total`, `patients_registered_total`, `consultations_total`, `prescriptions_total`, etc.).
+2. **Desalinhamento de endpoints e nomes de métricas:** os serviços Java 21 / Spring Boot 3.3.4 expõem métricas Micrometer em `/actuator/prometheus` (padrão `http_server_requests_seconds_*`), enquanto alguns painéis e regras ainda preservam séries históricas da antiga implementação Python.
 
 ---
 
@@ -21,15 +21,15 @@ Entretanto, durante esta auditoria foram identificadas **duas condições críti
 
 ### 2.1 Resultados do `promtool` (`prom/prometheus:v2.54.1`)
 
-Comandos executados (montando `backend/observability/prometheus` em `/etc/prometheus:ro`):
+Comandos executados (montando `backend-java/observability/prometheus` em `/etc/prometheus:ro`):
 
 ```bash
 docker run --rm --entrypoint promtool \
-  -v /home/douglas/Documentos/PI-2026/PROMPTUARIO_CORPORATIVO/backend/observability/prometheus:/etc/prometheus:ro \
+  -v /home/douglas/Documentos/PI-2026/PROMPTUARIO_CORPORATIVO/backend-java/observability/prometheus:/etc/prometheus:ro \
   prom/prometheus:v2.54.1 check config /etc/prometheus/prometheus.yml
 
 docker run --rm --entrypoint promtool \
-  -v /home/douglas/Documentos/PI-2026/PROMPTUARIO_CORPORATIVO/backend/observability/prometheus:/etc/prometheus:ro \
+  -v /home/douglas/Documentos/PI-2026/PROMPTUARIO_CORPORATIVO/backend-java/observability/prometheus:/etc/prometheus:ro \
   prom/prometheus:v2.54.1 check rules /etc/prometheus/alerts.yml
 ```
 
@@ -39,7 +39,7 @@ Saída observada:
 - **`alerts.yml`**: `SUCCESS: 24 rules found` (0 erros de parsing, 0 erros de sintaxe PromQL, 0 regras com nomes duplicados).
 - **`otel-collector-config.yml`**: validado via parser YAML (`yaml.safe_load`) sem erros.
 
-### 2.2 Inventário de Scrape Jobs em `backend/observability/prometheus/prometheus.yml`
+### 2.2 Inventário de Scrape Jobs em `backend-java/observability/prometheus/prometheus.yml`
 
 | Job | Target | `metrics_path` configurado | Tipo de Serviço no Compose | Diagnóstico Estático |
 | :--- | :--- | :--- | :--- | :--- |
@@ -65,7 +65,7 @@ Saída observada:
 
 ## 3. Varredura dos Dashboards Grafana
 
-Foram inspecionados todos os dashboards provisionados em `backend/observability/grafana/provisioning/dashboards/`:
+Foram inspecionados todos os dashboards provisionados em `backend-java/observability/grafana/provisioning/dashboards/`:
 
 - `promptuario.json` (`uid: promptuario-obs`, 24 painéis, 7 rows, 2 variáveis de template)
 - `backup_dashboard.json` (`uid: backup-dr`, 9 painéis, 4 rows, 0 variáveis)
@@ -160,20 +160,20 @@ Como Prometheus e os serviços da aplicação não estavam em execução durante
 
 ### 5.1 Inspeção Estática da Configuração
 
-- **`backend/observability/otel-collector-config.yml`** (válido):
+- **`backend-java/observability/otel-collector-config.yml`** (válido):
   - `receivers.otlp`: gRPC em `0.0.0.0:4317` e HTTP em `0.0.0.0:4318`.
   - `processors`: `memory_limiter` (`256 MiB`) e `batch` (`timeout: 1s`, `send_batch_size: 1024`).
   - `exporters`: `otlp/jaeger` apontando para `jaeger:4317` (`tls.insecure: true`) e `logging` (`loglevel: warn`).
   - `service.pipelines.traces`: `receivers: [otlp]` → `processors: [memory_limiter, batch]` → `exporters: [otlp/jaeger, logging]`.
-- **`backend/docker-compose.yml`**:
+- **`backend-java/docker-compose.yml`**:
   - `jaeger` (`jaegertracing/all-in-one:1.58`) com `COLLECTOR_OTLP_ENABLED: "true"`, portas `16686:16686` e `14250:14250`.
   - `otel-collector` (`otel/opentelemetry-collector-contrib:0.105.0`), portas `4317:4317` e `4318:4318`, dependendo de `jaeger`.
-  - `OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317` injetado em `patient-clinical-service`, `ai-service` e `reporting-service`.
-- **Lacuna identificada nos serviços Java (`pom.xml`):** `patient-clinical-service`, `iam-service` e `gateway` não possuem dependência OpenTelemetry/Micrometer Tracing OTLP nos respectivos `pom.xml` no estado atual (apenas os serviços Python importam `opentelemetry-exporter-otlp-proto-grpc` via `backend/shared/observability.py`).
+  - `OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317` injetado nos serviços da stack Java.
+  - **Lacuna identificada nos serviços Java (`pom.xml`):** `patient-clinical-service`, `iam-service` e `gateway` não possuem dependência OpenTelemetry/Micrometer Tracing OTLP nos respectivos `pom.xml` no estado atual (o AI Python da própria stack usa `backend-java/shared/observability.py`).
 
 ### 5.2 Status Operacional em Runtime (`otel-collector:4318` e `jaeger:16686`)
 
-- `http://localhost:4318/`: **Inacessível (`OTEL_UNREACHABLE`)** — container `otel-collector` não estava em execução no momento da auditoria.
+  - `http://localhost:4318/`: **Inacessível (`OTEL_UNREACHABLE`)** — container `otel-collector` não estava em execução no momento da auditoria.
 - `http://localhost:16686/`: **Inacessível (`JAEGER_UNREACHABLE`)** — container `jaeger` não estava em execução no momento da auditoria.
 - **Conclusão:** A configuração estática do pipeline OTel → Jaeger está válida e consistente, porém **não foi possível confirmar operacionalidade em runtime** nesta sessão por ausência da stack em execução.
 
@@ -181,7 +181,7 @@ Como Prometheus e os serviços da aplicação não estavam em execução durante
 
 ## 6. Próximos Passos Recomendados antes/durante a Fase O1
 
-1. Subir a stack via `docker compose` (`backend/docker-compose.yml`) para capturar os valores numéricos de baseline reais em `localhost:9090`, `8002/actuator/prometheus`, `4318` e `16686`.
+1. Subir a stack via `docker compose` (`backend-java/docker-compose.yml`) para capturar os valores numéricos de baseline reais em `localhost:9090`, `8002/actuator/prometheus`, `4318` e `16686`.
 2. Corrigir `metrics_path: /actuator/prometheus` em `prometheus.yml` para os jobs Java (`gateway`, `iam-service`, `patient-clinical-service`).
 3. Corrigir a divisão vetorial da regra `HighErrorRate` em `alerts.yml` (agregar por `service`/`job`) e adicionar suporte às métricas Micrometer (`http_server_requests_seconds_*`) em `alerts.yml` e `promptuario.json`.
 4. Definir na transição O1/O2 o registro das métricas de negócio (`patients_registered_total`, `consultations_total`, `prescriptions_total`, etc.) e exportação OTLP no `patient-clinical-service` Java.

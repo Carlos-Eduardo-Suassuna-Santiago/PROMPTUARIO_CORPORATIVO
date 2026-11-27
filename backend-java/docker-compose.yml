@@ -122,7 +122,7 @@ services:
   # Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ MICROSERVICES Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   iam-service:
     build:
-      context: ../backend-java/iam-service
+      context: ./iam-service
       dockerfile: Dockerfile
     container_name: iam-service
     restart: unless-stopped
@@ -155,7 +155,7 @@ services:
   # Do not add a separate patient-clinical worker container.
   patient-clinical-service:
     build:
-      context: ../backend-java/patient-clinical-service
+      context: ./patient-clinical-service
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
@@ -188,8 +188,8 @@ services:
 
   ai-service:
     build:
-      context: ..
-      dockerfile: backend-java/ai-service/Dockerfile
+      context: .
+      dockerfile: ai-service/Dockerfile
     restart: unless-stopped
     environment:
       MONGODB_URL: mongodb://ai:${DB_AI_PASSWORD:-ai_pass}@db-ai:27017/ai_db?authSource=admin
@@ -225,8 +225,8 @@ services:
 
   reporting-service:
     build:
-      context: ..
-      dockerfile: backend-java/reporting-service/Dockerfile
+      context: .
+      dockerfile: reporting-service/Dockerfile
     restart: unless-stopped
     environment:
       SERVER_PORT: 8000
@@ -236,8 +236,6 @@ services:
       DB_REPORTING_PASSWORD: ${DB_REPORTING_PASSWORD:-reporting_pass}
       SERVICE_NAME: reporting-service
       DATABASE_URL: postgresql+asyncpg://reporting:${DB_REPORTING_PASSWORD:-reporting_pass}@db-reporting:5432/reporting_db
-      CELERY_BROKER_URL: redis://redis:6379/1
-      CELERY_RESULT_BACKEND: redis://redis:6379/1
       RABBITMQ_URL: amqp://promptuario:${RABBITMQ_PASSWORD:-promptuario_pass}@rabbitmq:5672/
       S3_ENDPOINT: http://minio:9000
       S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
@@ -271,7 +269,7 @@ services:
   # Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ API GATEWAY Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   gateway:
     build:
-      context: ../backend-java/gateway
+      context: ./gateway
       dockerfile: Dockerfile
     container_name: api-gateway
     restart: unless-stopped
@@ -332,8 +330,8 @@ services:
   prometheus:
     image: prom/prometheus:v2.54.1
     volumes:
-      - ../backend/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ../backend/observability/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
       - prometheus_data:/prometheus
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
@@ -362,7 +360,7 @@ services:
   grafana:
     image: grafana/grafana:11.2.2
     volumes:
-      - ../backend/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana_data:/var/lib/grafana
     environment:
       GF_SECURITY_ADMIN_USER: admin
@@ -388,7 +386,7 @@ services:
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.105.0
     volumes:
-      - ../backend/observability/otel-collector-config.yml:/etc/otelcol-contrib/config.yaml:ro
+      - ./observability/otel-collector-config.yml:/etc/otelcol-contrib/config.yaml:ro
     ports:
       - "4317:4317"
       - "4318:4318"
