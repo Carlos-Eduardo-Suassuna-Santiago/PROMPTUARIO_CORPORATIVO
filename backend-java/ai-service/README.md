@@ -58,7 +58,7 @@ Este microsserviço existe para ajudar profissionais de saúde a trabalhar com m
 ### Desenvolvimento local (sem Docker)
 
 ```bash
-cd backend/ai-service
+cd backend-java/ai-service
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8004
 ```
@@ -83,10 +83,10 @@ docker compose up --build ai-service
 
 | Evento                | Publica/Consome | Exchange               | Descrição                     |
 |-----------------------|----------------|------------------------|-------------------------------|
-| `MedicalRecordCreated`| Consome        | `promptuario.clinical` | Prontuário criado → auto-análise |
-| `PrescriptionGenerated`| Consome       | `promptuario.clinical` | Prescrição gerada → drug check |
-| `AllergyAdded`        | Consome        | `promptuario.patient`  | Alergia registrada → alerta   |
-| `AnalysisCompleted`   | Publica        | `promptuario.ai`       | Análise finalizada            |
+| `MedicalRecordCreated`| Consome        | `domain.events` | Prontuário criado → auto-análise |
+| `PrescriptionGenerated`| Consome       | `domain.events` | Prescrição gerada → drug check |
+| `AllergyAdded`        | Consome        | `domain.events`  | Alergia registrada → alerta   |
+| `AnalysisCompleted`   | Publica        | `domain.events`       | Análise finalizada            |
 
 ## Exemplo de uso
 
@@ -130,7 +130,7 @@ curl -X POST http://localhost:8000/api/v1/ai/analyze \
 ## Testes
 
 ```bash
-cd backend/ai-service
+cd backend-java/ai-service
 pytest -q
 ```
 

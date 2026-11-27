@@ -2,9 +2,9 @@ FROM maven:3.9-eclipse-temurin-21-alpine AS build
 
 WORKDIR /workspace
 
-COPY backend-java/reporting-service/pom.xml .
+COPY reporting-service/pom.xml .
 RUN mvn -B dependency:go-offline
-COPY backend-java/reporting-service/src ./src
+COPY reporting-service/src ./src
 RUN mvn -B clean package -DskipTests
 
 FROM eclipse-temurin:21-jre-alpine

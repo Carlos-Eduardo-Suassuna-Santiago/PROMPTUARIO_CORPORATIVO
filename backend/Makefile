@@ -3,7 +3,7 @@
 
 # ─── Config ───────────────────────────────────────────────────────────────────
 COMPOSE = docker compose
-SERVICES = gateway iam-service patient-clinical-service ai-service reporting-service reporting-worker
+SERVICES = gateway iam-service patient-clinical-service ai-service reporting-service
 TEST_JWT_SECRET_KEY ?= test-only-secret-key-with-at-least-32-characters
 
 help: ## Show this help
@@ -84,8 +84,8 @@ test: ## Run all unit tests
 test-svc: ## Test a specific service: make test-svc SVC=iam-service
 	cd $(SVC) && python -m pytest tests/ -v --tb=short
 
-test-ai: ## Run the Python AI service tests
-	cd ai-service && JWT_SECRET_KEY=$(TEST_JWT_SECRET_KEY) PYTHONPATH=.. \
+test-ai: ## Run the Java-migration AI service tests
+	cd ../backend-java/ai-service && JWT_SECRET_KEY=$(TEST_JWT_SECRET_KEY) PYTHONPATH=.. \
 		python -m pytest tests/ -m "not integration" -o asyncio_mode=auto -v --tb=short
 
 test-patient-clinical: ## Run the Java Patient-Clinical tests (includes Spring AMQP worker context)

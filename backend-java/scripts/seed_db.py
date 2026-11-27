@@ -18,11 +18,11 @@ Além do cadastro de usuários, o script simula o ecossistema hospitalar:
   • Histórico do paciente (Alergias, Vacinas, Uso contínuo)
 
 Execução padrão (acesso direto aos serviços locais na porta 8001..8003):
-    python backend/scripts/seed_db.py
+    python backend-java/scripts/seed_db.py
 
 Opções CLI:
-    python backend/scripts/seed_db.py --via-gateway
-    python backend/scripts/seed_db.py --help
+    python backend-java/scripts/seed_db.py --via-gateway
+    python backend-java/scripts/seed_db.py --help
 """
 
 from __future__ import annotations

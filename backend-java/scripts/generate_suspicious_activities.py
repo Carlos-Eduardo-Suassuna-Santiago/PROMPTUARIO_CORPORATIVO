@@ -20,7 +20,7 @@ Execução (via Docker):
     docker compose exec reporting-service python /app/scripts/generate_suspicious_activities.py
 
 Execução local:
-    python backend/scripts/generate_suspicious_activities.py
+    python backend-java/scripts/generate_suspicious_activities.py
 """
 
 import asyncio

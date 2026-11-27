@@ -15,7 +15,7 @@ API e processamento assíncrono são executados no mesmo processo Spring Boot:
 - RabbitMQ e MinIO continuam obrigatórios para mensageria e armazenamento.
 
 O serviço aparece uma única vez em `backend-java/docker-compose.yml` e
-`backend/docker-compose.yml`, sob o nome `patient-clinical-service`.
+`backend-java/docker-compose.yml`, sob o nome `patient-clinical-service`.
 
 ## Desenvolvimento
 

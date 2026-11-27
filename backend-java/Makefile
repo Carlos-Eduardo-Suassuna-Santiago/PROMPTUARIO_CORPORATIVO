@@ -3,7 +3,7 @@
 
 # ─── Config ───────────────────────────────────────────────────────────────────
 COMPOSE = docker compose
-SERVICES = gateway iam-service patient-clinical-service ai-service reporting-service reporting-worker
+SERVICES = gateway iam-service patient-clinical-service ai-service reporting-service
 TEST_JWT_SECRET_KEY ?= test-only-secret-key-with-at-least-32-characters
 
 help: ## Show this help
@@ -58,19 +58,11 @@ logs-svc: ## Tail logs of a specific service: make logs-svc SVC=iam-service
 
 # ─── Development ──────────────────────────────────────────────────────────────
 
-dev-iam: ## Run IAM service locally (no Docker)
-	cd iam-service && PYTHONPATH=/home/$(USER)/promptuario-backend \
-		uvicorn app.main:app --reload --port 8001
-
 dev-ai: ## Build and run the Python AI service with its Compose dependencies
 	$(COMPOSE) up --build ai-service
 
 dev-patient-clinical: ## Build and run the Java service with its internal Spring AMQP worker
 	$(COMPOSE) up --build patient-clinical-service
-
-dev-gateway: ## Run Gateway locally (no Docker)
-	cd gateway && PYTHONPATH=/home/$(USER)/promptuario-backend \
-		uvicorn app.main:app --reload --port 8000
 
 # ─── Testing ──────────────────────────────────────────────────────────────────
 

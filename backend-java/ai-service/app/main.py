@@ -131,8 +131,7 @@ async def startup():
     await app.state.db.analysis_jobs.create_index("record_id")
     await app.state.db.analysis_jobs.create_index("status")
     await app.state.db.analysis_jobs.create_index("created_at")
-    # One source event can create at most one analysis job, even when the
-    # canonical and legacy RabbitMQ publications are both consumed.
+    # One source event can create at most one analysis job.
     await app.state.db.analysis_jobs.create_index("source_event_id", unique=True, sparse=True)
 
     # Redis

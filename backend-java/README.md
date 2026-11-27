@@ -15,7 +15,7 @@ Internet → API Gateway :8000
 > integralmente substituídos por `patient-clinical-service` (:8002, banco único
 > `patient_clinical_db`). As URLs públicas via Gateway (`/patients`,
 > `/appointments`, `/schedules`, `/records`) foram 100% preservadas. Os backups
-> dos bancos legados estão arquivados em `backend/.phase12-backups/`.
+> os bancos anteriores estão arquivados fora da stack Java.
 ```
 
 No `docker-compose.yml`, cada microserviço escuta em `8000` dentro do container e é exposto no host nas portas `8000` (gateway), `8001` (IAM), `8002` (patient-clinical), `8004` (AI) e `8005` (reporting). O endpoint de health padronizado é `/healthz`.
@@ -310,7 +310,7 @@ curl -H "Authorization: Bearer $TOKEN" `
 ## Estrutura do projeto
 
 ```
-promptuario-backend/
+promptuario-backend-java/
 ├── docker-compose.yml
 ├── Makefile
 ├── .env.example
@@ -331,8 +331,7 @@ promptuario-backend/
 ├── patient-clinical-service/  # Java 21 + worker Spring AMQP interno (porta 8002)
 ├── ai-service/                # AI Python preservado (porta 8004)
 └── reporting-service/         # Reporting Service (porta 8005)
-    ├── app/workers/           # Tarefas Celery exclusivas do Reporting
-    └── Dockerfile.worker
+    └── src/                   # Reporting Java / Spring Boot
 ```
 
 ## Eventos de domínio (RabbitMQ)
@@ -344,10 +343,10 @@ promptuario-backend/
 | `PatientCreated`        | `promptuario.patient`    | Patient       | Clinical (projection), Reporting |
 | `PatientUpdated`        | `promptuario.patient`    | Patient       | Clinical (projection)            |
 | `AllergyAdded`          | `promptuario.patient`    | Patient       | AI                               |
-| `AppointmentCreated`    | `promptuario.clinical`   | Clinical      | Reporting                        |
-| `AppointmentCancelled`  | `promptuario.clinical`   | Clinical      | Reporting                        |
-| `MedicalRecordCreated`  | `promptuario.clinical`   | Clinical      | AI (auto-análise), Reporting     |
-| `PrescriptionGenerated` | `promptuario.clinical`   | Clinical      | AI (drug check)                  |
+| `AppointmentCreated`    | `domain.events`          | Clinical      | Reporting                        |
+| `AppointmentCancelled`  | `domain.events`          | Clinical      | Reporting                        |
+| `MedicalRecordCreated`  | `domain.events`          | Clinical      | AI (auto-análise), Reporting     |
+| `PrescriptionGenerated` | `domain.events`          | Clinical      | AI (drug check)                  |
 | `AnalysisCompleted`     | `promptuario.ai`         | AI            | Clinical (attach result)         |
 
 ## Testes

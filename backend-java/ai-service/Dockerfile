@@ -5,12 +5,12 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc curl && rm -rf /var/lib/apt/lists/*
 
-COPY backend-java/ai-service/requirements.txt .
+COPY ai-service/requirements.txt .
 RUN pip install --default-timeout=120 --no-cache-dir -r requirements.txt
 
 # Shared contracts and infrastructure for the Java-migration stack.
-COPY backend-java/shared /app/shared
-COPY backend-java/ai-service/app ./app
+COPY shared /app/shared
+COPY ai-service/app ./app
 
 EXPOSE 8000
 
