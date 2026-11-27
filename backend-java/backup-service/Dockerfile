@@ -24,6 +24,7 @@ RUN apk add --no-cache \
         mongodb-tools \
         bash \
         tzdata \
+        wget \
     && rm -rf /var/cache/apk/*
 
 # Cria usuário não-root para execução (onde viável)
@@ -46,3 +47,6 @@ USER backup
 
 # Entrypoint otimizado para contêiner
 ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=5 \
+  CMD wget -q -O - http://127.0.0.1:8000/actuator/health || exit 1

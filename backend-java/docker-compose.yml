@@ -447,6 +447,9 @@ services:
       context: ./backup-service
       dockerfile: Dockerfile
     environment:
+      DB_IAM_PASS: ${DB_IAM_PASSWORD:-iam_pass}
+      DB_PATIENT_CLINICAL_PASS: ${DB_CLINICAL_PASSWORD:-clinical_pass}
+      DB_REPORTING_PASS: ${DB_REPORTING_PASSWORD:-reporting_pass}
       MONGO_HOST: db-ai
       MONGO_USER: ai
       MONGO_PASS: ${DB_AI_PASSWORD:-ai_pass}
