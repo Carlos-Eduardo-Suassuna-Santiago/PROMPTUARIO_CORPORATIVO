@@ -99,7 +99,9 @@ services:
       - "15672:15672"
 
   minio:
-    image: minio/minio:latest
+    # Docker Hub deixou de publicar a imagem comunitária minio/minio.
+    # Este mirror mantém o binário upstream versionado e evita a tag flutuante latest.
+    image: dappros/minio:RELEASE.2025-09-07T16-13-09Z
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
