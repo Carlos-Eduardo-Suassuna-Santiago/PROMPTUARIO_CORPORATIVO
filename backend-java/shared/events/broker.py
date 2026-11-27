@@ -48,7 +48,7 @@ class EventPublisher:
     async def publish(self, event: DomainEvent) -> None:
         if not self._channel:
             raise RuntimeError("Publisher not connected")
-        exchange_name = getattr(event, "EXCHANGE", "promptuario.iam")
+        exchange_name = getattr(event, "EXCHANGE", "iam.events")
         routing_key = getattr(event, "ROUTING_KEY", "event.generic")
         exchange = await self._channel.get_exchange(exchange_name)
         message = Message(

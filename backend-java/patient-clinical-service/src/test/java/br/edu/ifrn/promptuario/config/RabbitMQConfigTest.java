@@ -14,16 +14,12 @@ class RabbitMQConfigTest {
     private final RabbitMQConfig config = new RabbitMQConfig();
 
     @Test
-    void compatibilityExchangesAndQueuesAreDurable() {
+    void canonicalExchangesAndQueuesAreDurable() {
         assertThat(config.domainEventsExchange().isDurable()).isTrue();
-        assertThat(config.legacyClinicalEventsExchange().isDurable()).isTrue();
         assertThat(config.clinicalEventsQueue().isDurable()).isTrue();
         assertThat(config.medicalRecordCreatedBinding(
                 config.clinicalEventsQueue(), config.domainEventsExchange()).getRoutingKey())
                 .isEqualTo("medical_record.created");
-        assertThat(config.legacyMedicalRecordCreatedBinding(
-                config.clinicalEventsQueue(), config.legacyClinicalEventsExchange()).getRoutingKey())
-                .isEqualTo("clinical.medical_record.created");
     }
 
     @Test

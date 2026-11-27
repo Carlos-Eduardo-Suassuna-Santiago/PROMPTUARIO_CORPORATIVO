@@ -29,8 +29,6 @@ public class RabbitMQConfig {
     public static final String DOMAIN_EVENTS_EXCHANGE = "domain.events";
     public static final String IAM_EVENTS_EXCHANGE = "iam.events";
     public static final String IAM_EVENTS_QUEUE = "patient_clinical.iam_events";
-    public static final String LEGACY_IAM_EXCHANGE = "promptuario.iam";
-    public static final String LEGACY_CLINICAL_EXCHANGE = "promptuario.clinical";
     public static final String CLINICAL_EVENTS_QUEUE = "patient_clinical.clinical_events";
 
     @Bean
@@ -41,18 +39,6 @@ public class RabbitMQConfig {
     @Bean
     public TopicExchange iamEventsExchange() {
         return new TopicExchange(IAM_EVENTS_EXCHANGE, true, false);
-    }
-
-    /** Compatibility exchange used by the existing Python IAM publisher. */
-    @Bean
-    public TopicExchange legacyIamEventsExchange() {
-        return new TopicExchange(LEGACY_IAM_EXCHANGE, true, false);
-    }
-
-    /** Temporary compatibility exchange consumed by the Python AI service. */
-    @Bean
-    public TopicExchange legacyClinicalEventsExchange() {
-        return new TopicExchange(LEGACY_CLINICAL_EXCHANGE, true, false);
     }
 
     @Bean
@@ -78,20 +64,6 @@ public class RabbitMQConfig {
     }
 
     @Bean
-    public Binding legacyMedicalRecordCreatedBinding(@Qualifier("clinicalEventsQueue") Queue clinicalEventsQueue,
-                                                     @Qualifier("legacyClinicalEventsExchange") TopicExchange legacyClinicalEventsExchange) {
-        return BindingBuilder.bind(clinicalEventsQueue).to(legacyClinicalEventsExchange)
-                .with("clinical.medical_record.created");
-    }
-
-    @Bean
-    public Binding legacyPrescriptionGeneratedBinding(@Qualifier("clinicalEventsQueue") Queue clinicalEventsQueue,
-                                                      @Qualifier("legacyClinicalEventsExchange") TopicExchange legacyClinicalEventsExchange) {
-        return BindingBuilder.bind(clinicalEventsQueue).to(legacyClinicalEventsExchange)
-                .with("clinical.prescription.generated");
-    }
-
-    @Bean
     public Binding userCreatedBinding(@Qualifier("iamEventsQueue") Queue iamEventsQueue,
                                      @Qualifier("iamEventsExchange") TopicExchange iamEventsExchange) {
         return BindingBuilder.bind(iamEventsQueue).to(iamEventsExchange).with("user.created");
@@ -101,18 +73,6 @@ public class RabbitMQConfig {
     public Binding userDeactivatedBinding(@Qualifier("iamEventsQueue") Queue iamEventsQueue,
                                           @Qualifier("iamEventsExchange") TopicExchange iamEventsExchange) {
         return BindingBuilder.bind(iamEventsQueue).to(iamEventsExchange).with("user.deactivated");
-    }
-
-    @Bean
-    public Binding legacyUserCreatedBinding(@Qualifier("iamEventsQueue") Queue iamEventsQueue,
-                                            @Qualifier("legacyIamEventsExchange") TopicExchange legacyIamEventsExchange) {
-        return BindingBuilder.bind(iamEventsQueue).to(legacyIamEventsExchange).with("iam.user.created");
-    }
-
-    @Bean
-    public Binding legacyUserDeactivatedBinding(@Qualifier("iamEventsQueue") Queue iamEventsQueue,
-                                                @Qualifier("legacyIamEventsExchange") TopicExchange legacyIamEventsExchange) {
-        return BindingBuilder.bind(iamEventsQueue).to(legacyIamEventsExchange).with("iam.user.deactivated");
     }
 
     @Bean

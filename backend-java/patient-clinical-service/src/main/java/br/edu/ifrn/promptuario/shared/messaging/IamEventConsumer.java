@@ -58,11 +58,9 @@ public class IamEventConsumer {
             if (eventType == null) {
                 eventType = body.path("eventType").asText(body.path("event_type").asText());
             }
-            if ("user.created".equals(eventType) || "iam.user.created".equals(eventType)
-                    || "UserCreated".equals(eventType)) {
+            if ("user.created".equals(eventType) || "UserCreated".equals(eventType)) {
                 handleUserCreated(objectMapper.readValue(message.getBody(), UserCreatedEvent.class));
-            } else if ("user.deactivated".equals(eventType) || "iam.user.deactivated".equals(eventType)
-                    || "UserDeactivated".equals(eventType)) {
+            } else if ("user.deactivated".equals(eventType) || "UserDeactivated".equals(eventType)) {
                 handleUserDeactivated(objectMapper.readValue(message.getBody(), UserDeactivatedEvent.class));
             } else {
                 log.debug("Ignoring unsupported IAM event: type={}", eventType);

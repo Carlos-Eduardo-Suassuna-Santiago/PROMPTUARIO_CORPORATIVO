@@ -50,8 +50,8 @@ class UserCreatedEvent(DomainEvent):
     gender: str | None = None
     phone: str | None = None
 
-    ROUTING_KEY: ClassVar[str] = "iam.user.created"
-    EXCHANGE: ClassVar[str] = "promptuario.iam"
+    ROUTING_KEY: ClassVar[str] = "user.created"
+    EXCHANGE: ClassVar[str] = "iam.events"
 
 
 class UserDeactivatedEvent(DomainEvent):
@@ -60,8 +60,8 @@ class UserDeactivatedEvent(DomainEvent):
     reason: str
     deactivated_by: str
 
-    ROUTING_KEY: ClassVar[str] = "iam.user.deactivated"
-    EXCHANGE: ClassVar[str] = "promptuario.iam"
+    ROUTING_KEY: ClassVar[str] = "user.deactivated"
+    EXCHANGE: ClassVar[str] = "iam.events"
 
 
 class UserReactivatedEvent(DomainEvent):
@@ -69,8 +69,8 @@ class UserReactivatedEvent(DomainEvent):
     user_id: str
     reactivated_by: str
 
-    ROUTING_KEY: ClassVar[str] = "iam.user.reactivated"
-    EXCHANGE: ClassVar[str] = "promptuario.iam"
+    ROUTING_KEY: ClassVar[str] = "user.reactivated"
+    EXCHANGE: ClassVar[str] = "iam.events"
 
 
 class UserUpdatedEvent(DomainEvent):
@@ -80,8 +80,8 @@ class UserUpdatedEvent(DomainEvent):
     full_name: str | None = None
     email: str | None = None
 
-    ROUTING_KEY: ClassVar[str] = "iam.user.updated"
-    EXCHANGE: ClassVar[str] = "promptuario.iam"
+    ROUTING_KEY: ClassVar[str] = "user.updated"
+    EXCHANGE: ClassVar[str] = "iam.events"
 
 
 # ─── Patient Events ───────────────────────────────────────────────────────────
@@ -95,7 +95,7 @@ class PatientCreatedEvent(DomainEvent):
     blood_type: str | None = None
 
     ROUTING_KEY: ClassVar[str] = "patient.created"
-    EXCHANGE: ClassVar[str] = "promptuario.patient"
+    EXCHANGE: ClassVar[str] = "domain.events"
 
 
 class PatientUpdatedEvent(DomainEvent):
@@ -106,7 +106,7 @@ class PatientUpdatedEvent(DomainEvent):
     full_name: str | None = None
 
     ROUTING_KEY: ClassVar[str] = "patient.updated"
-    EXCHANGE: ClassVar[str] = "promptuario.patient"
+    EXCHANGE: ClassVar[str] = "domain.events"
 
 
 class AllergyAddedEvent(DomainEvent):
@@ -117,7 +117,7 @@ class AllergyAddedEvent(DomainEvent):
     severity: str
 
     ROUTING_KEY: ClassVar[str] = "patient.allergy.added"
-    EXCHANGE: ClassVar[str] = "promptuario.patient"
+    EXCHANGE: ClassVar[str] = "domain.events"
 
 
 # ─── Clinical Events ──────────────────────────────────────────────────────────
@@ -131,8 +131,8 @@ class AppointmentCreatedEvent(DomainEvent):
     appointment_type: str
     specialty: str | None = None
 
-    ROUTING_KEY: ClassVar[str] = "clinical.appointment.created"
-    EXCHANGE: ClassVar[str] = "promptuario.clinical"
+    ROUTING_KEY: ClassVar[str] = "appointment.created"
+    EXCHANGE: ClassVar[str] = "domain.events"
 
 
 class AppointmentCancelledEvent(DomainEvent):
@@ -143,8 +143,8 @@ class AppointmentCancelledEvent(DomainEvent):
     hours_before: float
     policy_violated: bool
 
-    ROUTING_KEY: ClassVar[str] = "clinical.appointment.cancelled"
-    EXCHANGE: ClassVar[str] = "promptuario.clinical"
+    ROUTING_KEY: ClassVar[str] = "appointment.cancelled"
+    EXCHANGE: ClassVar[str] = "domain.events"
 
 
 class MedicalRecordCreatedEvent(DomainEvent):
@@ -158,8 +158,8 @@ class MedicalRecordCreatedEvent(DomainEvent):
     prescriptions_count: int = 0
     exam_requests_count: int = 0
 
-    ROUTING_KEY: ClassVar[str] = "clinical.medical_record.created"
-    EXCHANGE: ClassVar[str] = "promptuario.clinical"
+    ROUTING_KEY: ClassVar[str] = "medical_record.created"
+    EXCHANGE: ClassVar[str] = "domain.events"
 
 
 class PrescriptionGeneratedEvent(DomainEvent):
@@ -171,8 +171,8 @@ class PrescriptionGeneratedEvent(DomainEvent):
     medications: list[dict[str, Any]] = []
     pdf_s3_key: str | None = None
 
-    ROUTING_KEY: ClassVar[str] = "clinical.prescription.generated"
-    EXCHANGE: ClassVar[str] = "promptuario.clinical"
+    ROUTING_KEY: ClassVar[str] = "prescription.generated"
+    EXCHANGE: ClassVar[str] = "domain.events"
 
 
 # ─── AI Events ────────────────────────────────────────────────────────────────
@@ -188,15 +188,13 @@ class AnalysisCompletedEvent(DomainEvent):
     model_version: str = "v1.0"
 
     ROUTING_KEY: ClassVar[str] = "ai.analysis.completed"
-    EXCHANGE: ClassVar[str] = "promptuario.ai"
+    EXCHANGE: ClassVar[str] = "domain.events"
 
 
 # ─── Exchange names ───────────────────────────────────────────────────────────
 
 EXCHANGES = {
-    "promptuario.iam": "topic",
-    "promptuario.patient": "topic",
-    "promptuario.clinical": "topic",
-    "promptuario.ai": "topic",
+    "iam.events": "topic",
+    "domain.events": "topic",
     "promptuario.dlx": "direct",
 }

@@ -31,44 +31,27 @@ class EventPublisherTest {
     private final Jackson2JsonMessageConverter converter = new Jackson2JsonMessageConverter(objectMapper);
 
     @Test
-    void publishesEquivalentMessagesOnceToCanonicalAndLegacyDestinations() throws Exception {
+    void publishesOneMessageToCanonicalDestination() throws Exception {
         RabbitTemplate rabbitTemplate = mock(RabbitTemplate.class);
         List<Publication> publications = capturePublications(rabbitTemplate);
-        EventPublisher publisher = new EventPublisher(rabbitTemplate, oneAttempt(), true);
+        EventPublisher publisher = new EventPublisher(rabbitTemplate, oneAttempt());
         MedicalRecordCreatedEvent event = event();
 
         publisher.publish("domain.events", "medical_record.created", event);
 
-        assertThat(publications).hasSize(2);
+        assertThat(publications).hasSize(1);
         assertThat(publications).extracting(Publication::destination).containsExactly(
-                "domain.events/medical_record.created",
-                "promptuario.clinical/clinical.medical_record.created");
-        assertThat(new HashSet<>(publications.stream().map(Publication::destination).toList())).hasSize(2);
+                "domain.events/medical_record.created");
 
         Message canonical = publications.get(0).toMessage(converter);
-        Message legacy = publications.get(1).toMessage(converter);
-        assertThat(objectMapper.readTree(canonical.getBody())).isEqualTo(objectMapper.readTree(legacy.getBody()));
         assertEnvelope(canonical, event);
-        assertEnvelope(legacy, event);
-    }
-
-    @Test
-    void featureFlagDisablesOnlyTheLegacyPublication() {
-        RabbitTemplate rabbitTemplate = mock(RabbitTemplate.class);
-        List<Publication> publications = capturePublications(rabbitTemplate);
-        EventPublisher publisher = new EventPublisher(rabbitTemplate, oneAttempt(), false);
-
-        publisher.publish("domain.events", "medical_record.created", event());
-
-        assertThat(publications).extracting(Publication::destination)
-                .containsExactly("domain.events/medical_record.created");
     }
 
     @Test
     void publishesPrescriptionToItsCanonicalAndLegacyRoutingKeys() {
         RabbitTemplate rabbitTemplate = mock(RabbitTemplate.class);
         List<Publication> publications = capturePublications(rabbitTemplate);
-        EventPublisher publisher = new EventPublisher(rabbitTemplate, oneAttempt(), true);
+        EventPublisher publisher = new EventPublisher(rabbitTemplate, oneAttempt());
         PrescriptionGeneratedEvent event = new PrescriptionGeneratedEvent(
                 UUID.fromString("22222222-2222-2222-2222-222222222222"),
                 Instant.parse("2026-01-15T13:30:45Z"),
@@ -84,8 +67,7 @@ class EventPublisherTest {
         publisher.publish("domain.events", "prescription.generated", event);
 
         assertThat(publications).extracting(Publication::destination).containsExactly(
-                "domain.events/prescription.generated",
-                "promptuario.clinical/clinical.prescription.generated");
+                "domain.events/prescription.generated");
     }
 
     private List<Publication> capturePublications(RabbitTemplate rabbitTemplate) {

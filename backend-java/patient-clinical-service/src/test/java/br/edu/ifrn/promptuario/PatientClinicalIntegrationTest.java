@@ -8,7 +8,6 @@ import br.edu.ifrn.promptuario.shared.messaging.EventPublisher;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.MethodOrderer;
@@ -43,7 +42,6 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.containers.RabbitMQContainer;
 import org.testcontainers.containers.localstack.LocalStackContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
-import org.testcontainers.images.builder.ImageFromDockerfile;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
@@ -58,8 +56,6 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -72,7 +68,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static br.edu.ifrn.promptuario.config.RabbitMQConfig.DOMAIN_EVENTS_EXCHANGE;
-import static br.edu.ifrn.promptuario.config.RabbitMQConfig.LEGACY_CLINICAL_EXCHANGE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -92,9 +87,7 @@ class PatientClinicalIntegrationTest {
             .truncatedTo(ChronoUnit.SECONDS);
 
     private static final String RECORD_CANONICAL_QUEUE = "test.record.canonical." + UUID.randomUUID();
-    private static final String RECORD_LEGACY_QUEUE = "test.record.legacy." + UUID.randomUUID();
     private static final String PRESCRIPTION_CANONICAL_QUEUE = "test.prescription.canonical." + UUID.randomUUID();
-    private static final String PRESCRIPTION_LEGACY_QUEUE = "test.prescription.legacy." + UUID.randomUUID();
 
     private static final Network NETWORK = Network.newNetwork();
 
@@ -122,14 +115,6 @@ class PatientClinicalIntegrationTest {
             .withNetworkAliases("localstack");
 
     @Container
-    static final GenericContainer<?> MONGO = new GenericContainer<>(DockerImageName.parse("mongo:7.0"))
-            .withEnv("MONGO_INITDB_ROOT_USERNAME", "ai")
-            .withEnv("MONGO_INITDB_ROOT_PASSWORD", "ai_pass")
-            .withNetwork(NETWORK)
-            .withNetworkAliases("mongo")
-            .waitingFor(Wait.forLogMessage(".*Waiting for connections.*", 1));
-
-    @Container
     static final GenericContainer<?> REDIS = new GenericContainer<>(DockerImageName.parse("redis:7-alpine"))
             .withNetwork(NETWORK)
             .withNetworkAliases("redis")
@@ -153,12 +138,10 @@ class PatientClinicalIntegrationTest {
     @Autowired
     S3Client s3Client;
 
-    private static GenericContainer<?> aiPython;
     private static String patientId;
     private static String appointmentId;
     private static String recordId;
     private static String prescriptionId;
-    private static Message legacyRecordEvent;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -171,7 +154,6 @@ class PatientClinicalIntegrationTest {
         registry.add("spring.rabbitmq.port", RABBIT::getAmqpPort);
         registry.add("spring.rabbitmq.username", () -> RABBIT_USER);
         registry.add("spring.rabbitmq.password", () -> RABBIT_PASSWORD);
-        registry.add("app.messaging.legacy-publish-enabled", () -> "true");
 
         registry.add("app.storage.s3.endpoint",
                 () -> S3.getEndpointOverride(LocalStackContainer.Service.S3).toString());
@@ -182,17 +164,18 @@ class PatientClinicalIntegrationTest {
         registry.add("app.security.jwt.secret", () -> JWT_SECRET);
     }
 
+    /* Legacy AI container is intentionally not part of the Java integration suite.
     @BeforeAll
     static void startPythonAi() {
         Path repositoryRoot = locateRepositoryRoot();
         Assumptions.assumeTrue(
-                Files.isRegularFile(repositoryRoot.resolve("backend/ai-service/Dockerfile")),
+                Files.isRegularFile(repositoryRoot.resolve("backend-java/ai-service/Dockerfile")),
                 "Teste E2E ignorado: fontes do AI Python não foram encontrados no checkout");
 
         ImageFromDockerfile image = new ImageFromDockerfile("promptuario-ai-e2e:latest", false)
-                .withFileFromPath("Dockerfile", repositoryRoot.resolve("backend/ai-service/Dockerfile"))
-                .withFileFromPath("ai-service", repositoryRoot.resolve("backend/ai-service"))
-                .withFileFromPath("shared", repositoryRoot.resolve("backend/shared"));
+                .withFileFromPath("Dockerfile", repositoryRoot.resolve("backend-java/ai-service/Dockerfile"))
+                .withFileFromPath("ai-service", repositoryRoot.resolve("backend-java/ai-service"))
+                .withFileFromPath("shared", repositoryRoot.resolve("backend-java/shared"));
 
         aiPython = new GenericContainer<>(image)
                 .withNetwork(NETWORK)
@@ -211,21 +194,18 @@ class PatientClinicalIntegrationTest {
         aiPython.start();
     }
 
+    */
+
     @BeforeEach
     void declareCaptureQueues() throws Exception {
         awaitCondition("consumidor do worker PDF ficar pronto", Duration.ofSeconds(120),
                 () -> rabbitConsumerCount(PdfWorkerConfig.PDF_QUEUE) > 0);
         declareCaptureQueue(RECORD_CANONICAL_QUEUE, DOMAIN_EVENTS_EXCHANGE, "medical_record.created");
-        declareCaptureQueue(RECORD_LEGACY_QUEUE, LEGACY_CLINICAL_EXCHANGE, "clinical.medical_record.created");
         declareCaptureQueue(PRESCRIPTION_CANONICAL_QUEUE, DOMAIN_EVENTS_EXCHANGE, "prescription.generated");
-        declareCaptureQueue(PRESCRIPTION_LEGACY_QUEUE, LEGACY_CLINICAL_EXCHANGE, "clinical.prescription.generated");
     }
 
     @AfterAll
     static void stopPythonAi() {
-        if (aiPython != null) {
-            aiPython.stop();
-        }
         NETWORK.close();
     }
 
@@ -269,6 +249,7 @@ class PatientClinicalIntegrationTest {
         recordId = record.getBody().path("id").asText();
 
         Message canonicalRecord = receiveRequired(RECORD_CANONICAL_QUEUE, Duration.ofSeconds(15));
+        /* Legacy dual-publication assertions removed after canonical cutover.
         legacyRecordEvent = receiveRequired(RECORD_LEGACY_QUEUE, Duration.ofSeconds(15));
         assertEquivalentDualPublication(canonicalRecord, legacyRecordEvent, "MedicalRecordCreated");
         assertThat(rabbitTemplate.receive(RECORD_CANONICAL_QUEUE, 500)).isNull();
@@ -282,6 +263,7 @@ class PatientClinicalIntegrationTest {
         assertThat(mongoJobCount(recordId, "SYMPTOM_ANALYSIS"))
                 .as("o mesmo eventId deve ser processado somente uma vez")
                 .isEqualTo(1);
+        */
 
         ResponseEntity<JsonNode> prescription = createPrescription();
         assertCreated(prescription);
@@ -301,6 +283,7 @@ class PatientClinicalIntegrationTest {
                 .build()).contentLength()).isPositive();
 
         Message canonicalPrescription = receiveRequired(PRESCRIPTION_CANONICAL_QUEUE, Duration.ofSeconds(15));
+        /* Legacy dual-publication assertions removed after canonical cutover.
         Message legacyPrescription = receiveRequired(PRESCRIPTION_LEGACY_QUEUE, Duration.ofSeconds(15));
         assertEquivalentDualPublication(canonicalPrescription, legacyPrescription, "PrescriptionGenerated");
         assertThat(rabbitTemplate.receive(PRESCRIPTION_CANONICAL_QUEUE, 500)).isNull();
@@ -308,6 +291,7 @@ class PatientClinicalIntegrationTest {
 
         awaitCondition("AI Python consumir a prescrição", Duration.ofSeconds(30),
                 () -> mongoJobCount(recordId, "DRUG_INTERACTION_CHECK") == 1);
+        */
     }
 
     @Test
@@ -397,7 +381,7 @@ class PatientClinicalIntegrationTest {
                 .fixedBackoff(10)
                 .retryOn(AmqpException.class)
                 .build();
-        EventPublisher publisher = new EventPublisher(unavailableRabbit, retry, false);
+        EventPublisher publisher = new EventPublisher(unavailableRabbit, retry);
         MedicalRecordCreatedEvent event = new MedicalRecordCreatedEvent(
                 UUID.randomUUID(), Instant.now(), "MedicalRecordCreated", UUID.randomUUID().toString(),
                 UUID.randomUUID().toString(), UUID.randomUUID().toString(), UUID.randomUUID().toString(),
@@ -541,6 +525,7 @@ class PatientClinicalIntegrationTest {
         throw timeoutFailure;
     }
 
+    /*
     private static Path locateRepositoryRoot() {
         Path candidate = Path.of("").toAbsolutePath().normalize();
         while (candidate != null) {
@@ -552,6 +537,7 @@ class PatientClinicalIntegrationTest {
         }
         return Path.of("").toAbsolutePath().normalize();
     }
+    */
 
     private String token(String subject, String role) {
         try {
