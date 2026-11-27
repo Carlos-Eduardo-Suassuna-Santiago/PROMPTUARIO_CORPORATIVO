@@ -1,0 +1,29 @@
+server:
+  port: ${SERVER_PORT:8000}
+
+spring:
+  application:
+    name: reporting-service
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+  datasource:
+    url: jdbc:postgresql://${DB_REPORTING_HOST:localhost}:5432/${DB_REPORTING_NAME:reporting_db}
+    username: ${DB_REPORTING_USER:reporting}
+    password: ${DB_REPORTING_PASSWORD:reporting_pass}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+app:
+  service-name: ${SERVICE_NAME:reporting-service}
+  worker-delay-ms: ${REPORTING_WORKER_DELAY_MS:0}

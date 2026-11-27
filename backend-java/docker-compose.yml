@@ -225,10 +225,16 @@ services:
 
   reporting-service:
     build:
-      context: ../backend
-      dockerfile: reporting-service/Dockerfile
+      context: ..
+      dockerfile: backend-java/reporting-service/Dockerfile
     restart: unless-stopped
     environment:
+      SERVER_PORT: 8000
+      DB_REPORTING_HOST: db-reporting
+      DB_REPORTING_NAME: reporting_db
+      DB_REPORTING_USER: reporting
+      DB_REPORTING_PASSWORD: ${DB_REPORTING_PASSWORD:-reporting_pass}
+      SERVICE_NAME: reporting-service
       DATABASE_URL: postgresql+asyncpg://reporting:${DB_REPORTING_PASSWORD:-reporting_pass}@db-reporting:5432/reporting_db
       CELERY_BROKER_URL: redis://redis:6379/1
       CELERY_RESULT_BACKEND: redis://redis:6379/1
@@ -238,7 +244,6 @@ services:
       S3_ACCESS_KEY: ${MINIO_ROOT_USER:-promptuario}
       S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-promptuario_pass}
       S3_BUCKET_REPORTS: reports
-      SERVICE_NAME: reporting-service
       LOG_LEVEL: INFO
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-super-secret-change-in-production-32chars}
       JWT_ALGORITHM: HS256
@@ -247,7 +252,7 @@ services:
       PATIENT_DB_URL: postgresql://clinical:${DB_CLINICAL_PASSWORD:-clinical_pass}@db-patient-clinical:5432/patient_clinical_db
       CLINICAL_DB_URL: postgresql://clinical:${DB_CLINICAL_PASSWORD:-clinical_pass}@db-patient-clinical:5432/patient_clinical_db
     healthcheck:
-      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)" ]
+      test: [ "CMD", "curl", "-f", "http://127.0.0.1:8000/healthz" ]
       interval: 15s
       timeout: 5s
       start_period: 30s
@@ -261,49 +266,6 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-    networks: [ backend ]
-
-  reporting-worker:
-    build:
-      context: ../backend
-      dockerfile: reporting-service/Dockerfile.worker
-    restart: unless-stopped
-    environment:
-      DATABASE_URL: postgresql+asyncpg://reporting:${DB_REPORTING_PASSWORD:-reporting_pass}@db-reporting:5432/reporting_db
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-super-secret-change-in-production-32chars}
-      JWT_ALGORITHM: HS256
-      CELERY_BROKER_URL: redis://redis:6379/1
-      CELERY_RESULT_BACKEND: redis://redis:6379/1
-      RABBITMQ_URL: amqp://promptuario:${RABBITMQ_PASSWORD:-promptuario_pass}@rabbitmq:5672/
-      S3_ENDPOINT: http://minio:9000
-      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
-      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-promptuario}
-      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-promptuario_pass}
-      S3_BUCKET_REPORTS: reports
-      WEBHOOK_SIGNING_SECRET: reporting-webhook-secret-change-me
-    depends_on:
-      - reporting-service
-      - db-reporting
-      - redis
-    networks: [ backend ]
-
-  reporting-beat:
-    build:
-      context: ../backend
-      dockerfile: reporting-service/Dockerfile.worker
-    restart: unless-stopped
-    environment:
-      DATABASE_URL: postgresql+asyncpg://reporting:${DB_REPORTING_PASSWORD:-reporting_pass}@db-reporting:5432/reporting_db
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-super-secret-change-in-production-32chars}
-      JWT_ALGORITHM: HS256
-      CELERY_BROKER_URL: redis://redis:6379/1
-      CELERY_RESULT_BACKEND: redis://redis:6379/1
-      CELERY_BEAT_SCHEDULE_FILENAME: /tmp/celerybeat-schedule
-    command: [ "celery", "-A", "app.workers.celery_tasks.celery_app", "beat", "--loglevel=info", "--schedule=/tmp/celerybeat-schedule" ]
-    depends_on:
-      - reporting-service
-      - db-reporting
-      - redis
     networks: [ backend ]
 
   # Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ API GATEWAY Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
