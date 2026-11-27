@@ -89,6 +89,10 @@ class PatientClinicalIntegrationTest {
     private static final String RECORD_CANONICAL_QUEUE = "test.record.canonical." + UUID.randomUUID();
     private static final String PRESCRIPTION_CANONICAL_QUEUE = "test.prescription.canonical." + UUID.randomUUID();
 
+    // Kept only for compatibility with the disabled legacy-AI assertions below.
+    private static final String LEGACY_CLINICAL_EXCHANGE = DOMAIN_EVENTS_EXCHANGE;
+    private static final GenericContainer<?> MONGO = null;
+
     private static final Network NETWORK = Network.newNetwork();
 
     @Container
@@ -470,11 +474,6 @@ class PatientClinicalIntegrationTest {
         assertThat(headers.get("eventType")).hasToString(eventType);
         assertThat(headers.get("timestamp")).hasToString(timestamp);
         assertThat(headers.get("correlationId")).hasToString(correlationId);
-    }
-
-    private void publishDuplicate(Message original, String routingKey) {
-        Message duplicate = MessageBuilder.fromClonedMessage(original).build();
-        rabbitTemplate.send(LEGACY_CLINICAL_EXCHANGE, routingKey, duplicate);
     }
 
     private long mongoJobCount(String targetRecordId, String analysisType) throws Exception {
